@@ -1,29 +1,4 @@
-# Dependencies and generated Node-RED state
+secrets/
+nodered/.env
 nodered/node_modules/
-nodered/runtime/
-nodered/data/
-nodered/.config.*.json*
-nodered/*.log
-nodered/*.pid
-
-# Local configuration and credentials
-nodered/flows_cred.json
-**/service-account*.json
-**/*firebase-adminsdk*.json
-api sdk gì đó.txt
-Hướng dẫn sử dụng kích hoạt Codex.docx
-.env
-.env.*
-!.env.example
-
-# IDE, operating-system and temporary files
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-*.tmp
-*.bak
-*.swp
-
-# Local ESP32 network/MQTT credentials
-firmware/aqua_iot_nodered/aqua_secrets.h
+nodered/context/
