@@ -51,8 +51,11 @@ Trong Firebase Console:
 4. Project settings → Service accounts → **Generate new private key**.
 5. Lưu JSON ngoài thư mục public, đặt đường dẫn tuyệt đối vào `FIREBASE_SERVICE_ACCOUNT_PATH`.
 6. Khi thử xong, đặt `AQUA_ALLOW_LOCAL_AUTH=false` và `AQUA_ALLOW_DEMO_AUTH=false` để buộc đăng nhập Firebase.
+7. Bật ESP32 để thiết bị gửi ít nhất một gói MQTT. Khi tạo tài khoản, nhập **Device ID** đang hiện trên OLED, Serial Monitor hoặc trang cài Wi‑Fi. Backend sẽ ghi quan hệ Device ID → Firebase UID vào collection `aquaDevices`.
 
 Frontend chỉ nhận cấu hình Firebase Web công khai. Private key Admin, Telegram token và khóa AI chỉ được đọc ở backend. ID token gửi bằng header `Authorization: Bearer ...` và được Firebase Admin xác minh trước khi trả dashboard.
+
+Mỗi bộ ESP32 sinh một Device ID ổn định từ MAC Wi‑Fi, dạng `aqua-xxxxxxxxxxxx`. Một Device ID chỉ được nhận bởi một UID; tài khoản khác nhập lại mã sẽ bị từ chối. Mỗi UID có hồ sơ, dữ liệu, cảnh báo và liên kết Telegram riêng. Node-RED lấy Device ID từ MQTT topic, không tin trường `deviceId` do payload tự khai. `AQUA_DEVICE_OWNER_UID` chỉ còn dùng để tương thích thiết bị `esp32-aqua-01` cũ.
 
 ### Telegram
 
@@ -60,7 +63,7 @@ Frontend chỉ nhận cấu hình Firebase Web công khai. Private key Admin, Te
 2. Điền `TELEGRAM_BOT_TOKEN` vào `config.local.ps1` rồi khởi động lại hệ thống. Không cần tự tìm `chat_id`.
 3. Trên trang **Cảnh báo**, nhấn **Nhận thông báo từ Telegram**. Website tạo deep-link một lần và mở đúng bot.
 4. Người dùng phải bấm **Start** trong Telegram. Backend poll Bot API, xác nhận token một lần, ghi `chat_id` vào kho backend/Firestore và liên kết với UID đang đăng nhập.
-5. Bật công tắc Telegram rồi dùng **Gửi cảnh báo thử**. Cảnh báo thử chỉ gửi tới Telegram của người đang đăng nhập; cảnh báo hệ thống gửi tới mọi tài khoản đã chủ động liên kết.
+5. Bật công tắc Telegram rồi dùng **Gửi cảnh báo thử**. Cảnh báo thử chỉ gửi tới Telegram của người đang đăng nhập; cảnh báo cảm biến chỉ gửi tới tài khoản chủ sở hữu thiết bị đã liên kết.
 6. Có thể nhấn **Hủy liên kết** để xóa người nhận. `TELEGRAM_CHAT_ID` chỉ còn là tùy chọn tương thích cách cấu hình một người nhận cố định trước đây.
 
 Telegram không cho website tự đọc ID chỉ bằng cách mở ứng dụng. Việc người dùng bấm **Start** là bước đồng ý bắt buộc. Token deep-link hết hạn sau 10 phút, chỉ dùng một lần; raw Telegram ID và Bot token không được trả về frontend.
@@ -93,7 +96,7 @@ Nếu thiếu key, key sai, hết quota, timeout hoặc nhà cung cấp AI tạm
 
 | Topic | Chiều | Nội dung |
 |---|---|---|
-Topic root: `aqua-iot/nhom18-24127175-24127257/esp32-aqua-01`
+Topic root: `aqua-iot/nhom18-24127175-24127257/<deviceId>`
 
 | Topic con | ESP32/Node-RED | Nội dung |
 |---|---|---|

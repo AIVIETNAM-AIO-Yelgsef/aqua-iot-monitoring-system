@@ -31,11 +31,14 @@ after(() => {
 });
 
 test("local accounts use unique identities and isolated profiles", async () => {
+  await service.ingestTelemetry({ deviceId: "aqua-111111111111", temperature: 26 });
+  await service.ingestTelemetry({ deviceId: "aqua-222222222222", temperature: 27 });
   const alice = await service.handleAction({
     action: "authRegister",
     name: "Alice Local",
     email: "alice@example.com",
-    password: "StrongPassA!"
+    password: "StrongPassA!",
+    deviceId: "aqua-111111111111"
   }, request());
   assert.equal(alice.statusCode, 201);
   assert.match(alice.response.user.uid, /^local-[a-f0-9]{24}$/);
@@ -45,7 +48,8 @@ test("local accounts use unique identities and isolated profiles", async () => {
     action: "authRegister",
     name: "Bob Local",
     email: "bob@example.com",
-    password: "StrongPassB!"
+    password: "StrongPassB!",
+    deviceId: "aqua-222222222222"
   }, request());
   assert.equal(bob.statusCode, 201);
   assert.notEqual(bob.response.user.uid, alice.response.user.uid);
@@ -82,7 +86,8 @@ test("local login rejects invalid credentials and persists no plaintext secret",
     action: "authRegister",
     name: "Another Alice",
     email: "ALICE@example.com",
-    password: "OtherPass!"
+    password: "OtherPass!",
+    deviceId: "aqua-111111111111"
   }, request());
   assert.equal(duplicate.statusCode, 409);
 

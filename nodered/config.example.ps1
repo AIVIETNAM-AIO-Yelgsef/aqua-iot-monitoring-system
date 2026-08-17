@@ -47,3 +47,10 @@ $env:ALERT_COOLDOWN_MS = "600000"
 # Doi thanh false khi trien khai that va Firebase da hoat dong.
 $env:AQUA_ALLOW_LOCAL_AUTH = "true"
 $env:AQUA_ALLOW_DEMO_AUTH = "true"
+
+# Tùy chọn tương thích dữ liệu cũ. Để trống cho hệ thống mới:
+# người dùng nhập Device ID lúc đăng ký và backend tự ghi quan hệ Device ID -> UID.
+$env:AQUA_DEVICE_OWNER_UID = ""
+
+# Collection registry thiết bị. Không cần đổi nếu dùng mặc định.
+$env:FIREBASE_DEVICES_COLLECTION = "aquaDevices"

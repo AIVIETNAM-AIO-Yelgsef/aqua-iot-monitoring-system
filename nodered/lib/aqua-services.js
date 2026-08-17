@@ -12,9 +12,9 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const SERVICE_VERSION = "1.5.0";
+const SERVICE_VERSION = "1.7.0";
 const DEFAULT_DEVICE_ID = "esp32-aqua-01";
-const MQTT_TOPIC_ROOT = "aqua-iot/nhom18-24127175-24127257/esp32-aqua-01";
+const MQTT_TOPIC_PREFIX = "aqua-iot/nhom18-24127175-24127257";
 const MAX_LOCAL_TELEMETRY = 10000;
 const MAX_LOCAL_ALERTS = 500;
 const MAX_LOCAL_ACTIVITY = 500;
@@ -63,6 +63,19 @@ function cleanText(value, maxLength = 200) {
 
 function normalizeEmail(value) {
   return cleanText(value, 254).toLowerCase();
+}
+
+function normalizeDeviceId(value, required = false) {
+  const deviceId = cleanText(value || "", 64).toLowerCase();
+  if (!deviceId && !required) return "";
+  if (!/^[a-z0-9][a-z0-9-]{5,63}$/.test(deviceId)) {
+    throw serviceError(422, "DEVICE_ID_INVALID", "Ma thiet bi khong hop le. Hay nhap dung ma hien tren ESP32.");
+  }
+  return deviceId;
+}
+
+function mqttTopic(deviceId, suffix) {
+  return `${MQTT_TOPIC_PREFIX}/${normalizeDeviceId(deviceId, true)}/${suffix}`;
 }
 
 function validEmail(value) {
@@ -155,6 +168,10 @@ const config = Object.freeze({
   deviceOfflineMs: envNumber("DEVICE_OFFLINE_MS", 45000, 5000, 3600000),
   allowDemoAuth: envBoolean("AQUA_ALLOW_DEMO_AUTH", true),
   allowLocalAuth: envBoolean("AQUA_ALLOW_LOCAL_AUTH", true),
+  // Telemetry arrives from MQTT without a browser identity. Bind that single
+  // physical device to one Firebase/local uid at the trusted backend instead
+  // of accepting an owner supplied by the public MQTT payload.
+  deviceOwnerUid: cleanText(process.env.AQUA_DEVICE_OWNER_UID || "", 128),
   localSessionTtlMs: envNumber("AQUA_LOCAL_SESSION_TTL_MS", 2592000000, 3600000, 7776000000),
   checkRevokedTokens: envBoolean("FIREBASE_CHECK_REVOKED_TOKENS", false),
   openaiModel: cleanText(process.env.OPENAI_MODEL || "gpt-5.4-nano", 80),
@@ -176,6 +193,7 @@ const config = Object.freeze({
     alerts: cleanText(process.env.FIREBASE_ALERTS_COLLECTION || "aquaAlerts", 80),
     activity: cleanText(process.env.FIREBASE_ACTIVITY_COLLECTION || "aquaActivity", 80),
     profiles: cleanText(process.env.FIREBASE_PROFILES_COLLECTION || "aquaProfiles", 80),
+    devices: cleanText(process.env.FIREBASE_DEVICES_COLLECTION || "aquaDevices", 80),
     system: cleanText(process.env.FIREBASE_SYSTEM_COLLECTION || "aquaSystem", 80)
   })
 });
@@ -191,12 +209,14 @@ const defaultSettings = Object.freeze({
 });
 
 const emptyLocalState = () => ({
-  version: 2,
+  version: 4,
   latest: null,
   telemetry: [],
   alerts: [],
   activity: [],
   settings: { ...defaultSettings },
+  settingsByUid: {},
+  devices: {},
   profiles: {},
   localAccounts: {},
   localSessions: {},
@@ -209,7 +229,8 @@ const emptyLocalState = () => ({
     value: "unknown",
     changedAt: null,
     message: "Chua nhan trang thai MQTT"
-  }
+  },
+  mqttStatusByDevice: {}
 });
 
 function sanitizeLoadedState(input) {
@@ -226,6 +247,27 @@ function sanitizeLoadedState(input) {
     ? input.activity.filter(item => item && typeof item === "object").slice(-MAX_LOCAL_ACTIVITY)
     : [];
   base.settings = normalizeSettings(input.settings, defaultSettings, false);
+  if (input.settingsByUid && typeof input.settingsByUid === "object" && !Array.isArray(input.settingsByUid)) {
+    for (const [rawUid, rawSettings] of Object.entries(input.settingsByUid)) {
+      const uid = cleanText(rawUid, 128);
+      if (!uid || !rawSettings || typeof rawSettings !== "object") continue;
+      base.settingsByUid[uid] = normalizeSettings(rawSettings, defaultSettings, false);
+    }
+  }
+  if (input.devices && typeof input.devices === "object" && !Array.isArray(input.devices)) {
+    for (const [rawDeviceId, rawDevice] of Object.entries(input.devices)) {
+      if (!rawDevice || typeof rawDevice !== "object") continue;
+      let deviceId;
+      try { deviceId = normalizeDeviceId(rawDeviceId || rawDevice.deviceId, true); } catch (_) { continue; }
+      base.devices[deviceId] = {
+        deviceId,
+        ownerUid: cleanText(rawDevice.ownerUid || "", 128),
+        firstSeenAt: rawDevice.firstSeenAt ? safeIso(rawDevice.firstSeenAt) : null,
+        lastSeenAt: rawDevice.lastSeenAt ? safeIso(rawDevice.lastSeenAt) : null,
+        claimedAt: rawDevice.claimedAt ? safeIso(rawDevice.claimedAt) : null
+      };
+    }
+  }
   base.profiles = input.profiles && typeof input.profiles === "object" && !Array.isArray(input.profiles)
     ? input.profiles
     : {};
@@ -312,6 +354,19 @@ function sanitizeLoadedState(input) {
       message: cleanText(input.mqttStatus.message || "", 160)
     };
   }
+  if (input.mqttStatusByDevice && typeof input.mqttStatusByDevice === "object" && !Array.isArray(input.mqttStatusByDevice)) {
+    for (const [rawDeviceId, rawStatus] of Object.entries(input.mqttStatusByDevice)) {
+      if (!rawStatus || typeof rawStatus !== "object") continue;
+      let deviceId;
+      try { deviceId = normalizeDeviceId(rawDeviceId, true); } catch (_) { continue; }
+      base.mqttStatusByDevice[deviceId] = {
+        online: parseBoolean(rawStatus.online, false),
+        value: cleanText(rawStatus.value || "unknown", 40),
+        changedAt: rawStatus.changedAt ? safeIso(rawStatus.changedAt) : null,
+        message: cleanText(rawStatus.message || "", 160)
+      };
+    }
+  }
   return base;
 }
 
@@ -329,17 +384,110 @@ function loadLocalState() {
 }
 
 const localState = loadLocalState();
+if (config.deviceOwnerUid && !localState.devices[DEFAULT_DEVICE_ID]) {
+  localState.devices[DEFAULT_DEVICE_ID] = {
+    deviceId: DEFAULT_DEVICE_ID,
+    ownerUid: config.deviceOwnerUid,
+    firstSeenAt: null,
+    lastSeenAt: null,
+    claimedAt: new Date().toISOString()
+  };
+}
 let localWriteQueue = Promise.resolve();
+
+function principalUid(principal) {
+  return cleanText(principal && principal.uid || "", 128);
+}
+
+function deviceOwnerUid() {
+  return config.deviceOwnerUid;
+}
+
+function deviceOwnerForId(deviceId) {
+  let normalized;
+  try { normalized = normalizeDeviceId(deviceId || DEFAULT_DEVICE_ID, true); } catch (_) { return ""; }
+  const registered = localState.devices[normalized];
+  if (registered && registered.ownerUid) return cleanText(registered.ownerUid, 128);
+  return normalized === DEFAULT_DEVICE_ID ? deviceOwnerUid() : "";
+}
+
+function deviceIdsForPrincipal(principal) {
+  const uid = principalUid(principal);
+  if (!uid) return [];
+  const ids = Object.values(localState.devices)
+    .filter(device => cleanText(device.ownerUid, 128) === uid)
+    .map(device => device.deviceId);
+  if (uid === deviceOwnerUid() && !ids.includes(DEFAULT_DEVICE_ID)) ids.push(DEFAULT_DEVICE_ID);
+  return [...new Set(ids)].sort();
+}
+
+function recordOwnerUid(record) {
+  const explicit = cleanText(record && record.ownerUid || "", 128);
+  const requester = cleanText(record && record.requestedBy || "", 128);
+  // Records written before multi-user isolation did not contain ownerUid.
+  // User-created records retain requestedBy; only legacy physical telemetry
+  // without either field belongs to the configured original device owner.
+  if (explicit && explicit !== "unassigned") return explicit;
+  return requester || deviceOwnerForId(record && record.deviceId);
+}
+
+function principalHasDeviceAccess(principal, deviceId = DEFAULT_DEVICE_ID) {
+  const uid = principalUid(principal);
+  let requestedDevice;
+  try { requestedDevice = normalizeDeviceId(deviceId || DEFAULT_DEVICE_ID, true); } catch (_) { return false; }
+  return Boolean(uid && uid === deviceOwnerForId(requestedDevice));
+}
+
+function principalCanReadRecord(principal, record) {
+  const uid = principalUid(principal);
+  return Boolean(uid && recordOwnerUid(record) === uid);
+}
+
+function settingsForUid(uid) {
+  const key = cleanText(uid || "", 128);
+  if (!key) return { ...defaultSettings };
+  if (localState.settingsByUid[key]) return normalizeSettings(localState.settingsByUid[key], defaultSettings, false);
+  // Migrate the former global settings only to the configured physical-device
+  // owner. Every other account starts with clean defaults.
+  const initial = deviceIdsForPrincipal({ uid: key }).length > 0
+    ? normalizeSettings(localState.settings, defaultSettings, false)
+    : { ...defaultSettings };
+  localState.settingsByUid[key] = initial;
+  return normalizeSettings(initial, defaultSettings, false);
+}
+
+function settingsDocumentId(uid) {
+  return `settings-${crypto.createHash("sha256").update(String(uid || ""), "utf8").digest("hex").slice(0, 40)}`;
+}
+
+function requireDeviceAccess(principal, deviceId = DEFAULT_DEVICE_ID) {
+  if (!principalHasDeviceAccess(principal, deviceId)) {
+    throw serviceError(403, "DEVICE_ACCESS_FORBIDDEN", "Tai khoan nay chua duoc gan voi thiet bi ho ca.");
+  }
+}
+
+function resolveDeviceForPrincipal(principal, requestedDeviceId = "") {
+  const requested = requestedDeviceId ? normalizeDeviceId(requestedDeviceId, true) : "";
+  if (requested) {
+    requireDeviceAccess(principal, requested);
+    return requested;
+  }
+  const [first] = deviceIdsForPrincipal(principal);
+  if (!first) throw serviceError(403, "DEVICE_ACCESS_FORBIDDEN", "Tai khoan nay chua lien ket voi thiet bi nao.");
+  return first;
+}
 
 function localSnapshot() {
   return {
-    version: 2,
+    version: 4,
     savedAt: new Date().toISOString(),
     latest: localState.latest,
     telemetry: localState.telemetry.slice(-MAX_LOCAL_TELEMETRY),
     alerts: localState.alerts.slice(-MAX_LOCAL_ALERTS),
     activity: localState.activity.slice(-MAX_LOCAL_ACTIVITY),
     settings: localState.settings,
+    settingsByUid: localState.settingsByUid,
+    devices: localState.devices,
     profiles: localState.profiles,
     localAccounts: localState.localAccounts,
     localSessions: localState.localSessions,
@@ -347,7 +495,8 @@ function localSnapshot() {
     telegramLinkRequests: localState.telegramLinkRequests,
     telegramUpdateOffset: localState.telegramUpdateOffset,
     telegramBotId: localState.telegramBotId,
-    mqttStatus: localState.mqttStatus
+    mqttStatus: localState.mqttStatus,
+    mqttStatusByDevice: localState.mqttStatusByDevice
   };
 }
 
@@ -373,6 +522,7 @@ function persistLocal() {
 const runtime = {
   latest: localState.latest,
   mqttStatus: localState.mqttStatus,
+  mqttStatusByDevice: localState.mqttStatusByDevice,
   lastSavedAtByDevice: new Map(),
   lastAlertAtByKey: new Map(),
   firebaseReady: false,
@@ -392,10 +542,20 @@ const runtime = {
 };
 
 for (const item of localState.telemetry) {
-  const deviceId = cleanText(item.deviceId || DEFAULT_DEVICE_ID, 80);
+  let deviceId;
+  try { deviceId = normalizeDeviceId(item.deviceId || DEFAULT_DEVICE_ID, true); } catch (_) { continue; }
   const timestamp = new Date(item.timestamp || item.receivedAt || 0).getTime();
   if (Number.isFinite(timestamp)) {
     runtime.lastSavedAtByDevice.set(deviceId, Math.max(runtime.lastSavedAtByDevice.get(deviceId) || 0, timestamp));
+    if (!localState.devices[deviceId]) {
+      localState.devices[deviceId] = {
+        deviceId,
+        ownerUid: cleanText(item.ownerUid || "", 128) === "unassigned" ? "" : cleanText(item.ownerUid || "", 128),
+        firstSeenAt: safeIso(item.receivedAt || item.timestamp),
+        lastSeenAt: safeIso(item.receivedAt || item.timestamp),
+        claimedAt: null
+      };
+    }
   }
 }
 for (const alert of localState.alerts) {
@@ -503,8 +663,11 @@ function getPublicConfig() {
   };
 }
 
-function publicFeatures() {
+function publicFeatures(principal = null) {
   const assistant = publicOpenAIStatus();
+  const readableLatest = principal && runtime.latest && principalCanReadRecord(principal, runtime.latest)
+    ? runtime.latest
+    : null;
   return {
     firebase: runtime.firebaseReady,
     firestore: runtime.firebaseReady,
@@ -517,9 +680,11 @@ function publicFeatures() {
     openaiOfficial: assistant.provider.official,
     chatbot: true,
     mqttControl: true,
+    deviceOwnershipConfigured: Object.values(localState.devices).some(device => Boolean(device.ownerUid)) || Boolean(deviceOwnerUid()),
+    deviceClaiming: true,
     cloudHistory: runtime.firebaseReady,
-    calibratedPh: Boolean(runtime.latest && runtime.latest.phCalibrated && Number.isFinite(runtime.latest.ph)),
-    calibratedTurbidity: Boolean(runtime.latest && runtime.latest.turbidityCalibrated && Number.isFinite(runtime.latest.turbidity))
+    calibratedPh: Boolean(readableLatest && readableLatest.phCalibrated && Number.isFinite(readableLatest.ph)),
+    calibratedTurbidity: Boolean(readableLatest && readableLatest.turbidityCalibrated && Number.isFinite(readableLatest.turbidity))
   };
 }
 
@@ -643,6 +808,7 @@ async function registerLocalAccount(input) {
   const name = cleanText(input.name, 100);
   const email = normalizeEmail(input.email);
   const password = String(input.password || "");
+  const deviceId = normalizeDeviceId(input.deviceId, true);
   if (name.length < 2) throw serviceError(422, "AUTH_NAME_INVALID", "Ho ten can it nhat 2 ky tu.");
   if (!validEmail(email)) throw serviceError(422, "AUTH_EMAIL_INVALID", "Email khong hop le.");
   if (password.length < 6 || password.length > 128) {
@@ -678,8 +844,19 @@ async function registerLocalAccount(input) {
     updatedAt: now
   };
   const session = createLocalSession(account);
-  await persistLocal();
-  return { user: localAccountPublic(account), ...session };
+  try {
+    const device = await claimDevice(deviceId, localPrincipal(account));
+    await persistLocal();
+    return { user: localAccountPublic(account), device, ...session };
+  } catch (error) {
+    delete localState.localAccounts[uid];
+    delete localState.profiles[uid];
+    for (const [tokenHash, storedSession] of Object.entries(localState.localSessions)) {
+      if (storedSession && storedSession.uid === uid) delete localState.localSessions[tokenHash];
+    }
+    await persistLocal();
+    throw error;
+  }
 }
 
 async function loginLocalAccount(input) {
@@ -734,8 +911,8 @@ function demoPrincipal() {
 async function verifyRequest(reqOrOptions, options = {}) {
   const wrapper = reqOrOptions && reqOrOptions.req ? reqOrOptions : null;
   const req = wrapper ? wrapper.req : reqOrOptions;
-  if (options.internal === true || (wrapper && wrapper.internal === true)) {
-    return options.principal || (wrapper && wrapper.principal) || {
+  if (options.internal === true || (reqOrOptions && reqOrOptions.internal === true) || (wrapper && wrapper.internal === true)) {
+    return options.principal || (reqOrOptions && reqOrOptions.principal) || (wrapper && wrapper.principal) || {
       uid: "system",
       name: "Aqua Backend",
       role: "system",
@@ -821,7 +998,7 @@ function normalizeTelemetry(raw) {
 
   const normalized = {
     id: cleanText(input.id || makeId("telemetry"), 120),
-    deviceId: cleanText(input.deviceId || DEFAULT_DEVICE_ID, 80) || DEFAULT_DEVICE_ID,
+    deviceId: normalizeDeviceId(input.deviceId || DEFAULT_DEVICE_ID, true),
     timestamp: new Date(timestampMs).toISOString(),
     timestampMs,
     receivedAt: new Date(now).toISOString(),
@@ -874,6 +1051,79 @@ async function firestoreSet(collection, documentId, value, merge = false) {
     console.warn(`[AquaServices] Firestore write failed (${runtime.firebaseLastError}); local fallback was kept.`);
     return false;
   }
+}
+
+async function registerDeviceSeen(deviceId, seenAt) {
+  const normalized = normalizeDeviceId(deviceId, true);
+  const timestamp = safeIso(seenAt || Date.now());
+  const existing = localState.devices[normalized] || {
+    deviceId: normalized,
+    ownerUid: normalized === DEFAULT_DEVICE_ID ? deviceOwnerUid() : "",
+    firstSeenAt: timestamp,
+    lastSeenAt: timestamp,
+    claimedAt: null
+  };
+  existing.deviceId = normalized;
+  existing.firstSeenAt = existing.firstSeenAt || timestamp;
+  existing.lastSeenAt = timestamp;
+  localState.devices[normalized] = existing;
+  if (runtime.firestore) {
+    await firestoreSet(config.collections.devices, normalized, {
+      deviceId: normalized,
+      firstSeenAt: new Date(existing.firstSeenAt),
+      lastSeenAt: new Date(timestamp)
+    }, true);
+  }
+  return existing;
+}
+
+async function claimDevice(deviceId, principal) {
+  const normalized = normalizeDeviceId(deviceId, true);
+  const uid = principalUid(principal);
+  if (!uid || uid === "demo") {
+    throw serviceError(401, "AUTH_REQUIRED", "Can dang nhap bang tai khoan that de nhan thiet bi.");
+  }
+
+  let localDevice = localState.devices[normalized] || null;
+  if (runtime.firestore) {
+    const reference = runtime.firestore.collection(config.collections.devices).doc(normalized);
+    await runtime.firestore.runTransaction(async transaction => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists && !localDevice) {
+        throw serviceError(404, "DEVICE_NOT_FOUND", "Khong tim thay ma thiet bi. Hay bat ESP32 va cho gui du lieu truoc khi dang ky.");
+      }
+      const cloud = snapshot.exists ? snapshot.data() : {};
+      const ownerUid = cleanText(cloud.ownerUid || localDevice && localDevice.ownerUid || "", 128);
+      if (ownerUid && ownerUid !== uid) {
+        throw serviceError(409, "DEVICE_ALREADY_CLAIMED", "Ma thiet bi nay da duoc lien ket voi mot tai khoan khac.");
+      }
+      const now = new Date();
+      transaction.set(reference, {
+        deviceId: normalized,
+        ownerUid: uid,
+        claimedAt: now,
+        claimedByEmail: normalizeEmail(principal.email || "")
+      }, { merge: true });
+    });
+  } else {
+    if (!localDevice) {
+      throw serviceError(404, "DEVICE_NOT_FOUND", "Khong tim thay ma thiet bi. Hay bat ESP32 va cho gui du lieu truoc khi dang ky.");
+    }
+    if (localDevice.ownerUid && localDevice.ownerUid !== uid) {
+      throw serviceError(409, "DEVICE_ALREADY_CLAIMED", "Ma thiet bi nay da duoc lien ket voi mot tai khoan khac.");
+    }
+  }
+
+  localDevice = localDevice || { deviceId: normalized, firstSeenAt: null, lastSeenAt: null };
+  localDevice.ownerUid = uid;
+  localDevice.claimedAt = new Date().toISOString();
+  localState.devices[normalized] = localDevice;
+  await persistLocal();
+  return {
+    deviceId: normalized,
+    assigned: true,
+    claimedAt: localDevice.claimedAt
+  };
 }
 
 function firestoreTelemetry(record) {
@@ -1297,6 +1547,7 @@ function alertCandidate(record, metric, direction, value, threshold, unit) {
   return {
     id: makeId("alert"),
     deviceId: record.deviceId,
+    ownerUid: recordOwnerUid(record),
     type: "threshold",
     severity: direction === "high" ? "warning" : "danger",
     metric,
@@ -1308,19 +1559,24 @@ function alertCandidate(record, metric, direction, value, threshold, unit) {
     message: `${label} ${displayValue}${unit} ${comparison} nguong ${displayThreshold}${unit}.`,
     timestamp: new Date().toISOString(),
     unread: true,
-    cooldownKey: `${record.deviceId}:${metric}:${direction}`,
+    cooldownKey: `${recordOwnerUid(record)}:${record.deviceId}:${metric}:${direction}`,
     telegram: { configured: config.telegramConfigured, sent: false }
   };
 }
 
 async function deliverAndPersistAlert(alert, bypassTelegram = false, telegramOptions = {}) {
-  if (localState.settings.telegramEnabled && !bypassTelegram) {
+  const ownerUid = cleanText(alert.ownerUid || alert.requestedBy || "", 128);
+  const ownerSettings = settingsForUid(ownerUid);
+  const deliveryOptions = ownerUid && !telegramOptions.onlyUid
+    ? { ...telegramOptions, onlyUid: ownerUid }
+    : telegramOptions;
+  if (ownerSettings.telegramEnabled && !bypassTelegram) {
     alert.telegram = await sendTelegram(
-      `AQUA IoT CẢNH BÁO\nHồ: ${cleanText(localState.settings.pondName || "Hồ cá chính", 80)}\n` +
+      `AQUA IoT CẢNH BÁO\nHồ: ${cleanText(ownerSettings.pondName || "Hồ cá chính", 80)}\n` +
       `${alert.message}\nThiết bị: ${alert.deviceId}\nLúc: ${new Date(alert.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`,
-      telegramOptions
+      deliveryOptions
     );
-  } else if (!localState.settings.telegramEnabled) {
+  } else if (!ownerSettings.telegramEnabled) {
     alert.telegram = { configured: config.telegramConfigured, sent: false, reason: "TELEGRAM_DISABLED" };
   }
   await persistAlert(alert);
@@ -1328,7 +1584,7 @@ async function deliverAndPersistAlert(alert, bypassTelegram = false, telegramOpt
 }
 
 async function evaluateThresholds(record) {
-  const settings = localState.settings;
+  const settings = settingsForUid(recordOwnerUid(record));
   const candidates = [];
   if (record.temperature !== null) {
     if (record.temperature < settings.tempMin) {
@@ -1360,6 +1616,10 @@ async function evaluateThresholds(record) {
 
 async function ingestTelemetry(raw) {
   const record = normalizeTelemetry(raw);
+  await registerDeviceSeen(record.deviceId, record.receivedAt);
+  // Never trust ownerUid from a message received through a public broker.
+  // Device ownership comes from the backend registry, never from MQTT JSON.
+  record.ownerUid = deviceOwnerForId(record.deviceId) || "unassigned";
   runtime.latest = record;
   localState.latest = record;
   const lastSaved = runtime.lastSavedAtByDevice.get(record.deviceId) || 0;
@@ -1391,8 +1651,10 @@ function setMqttStatus(status) {
   let online;
   let value;
   let message = "";
+  let deviceId = "";
   if (Buffer.isBuffer(status)) status = status.toString("utf8");
   if (status && typeof status === "object") {
+    try { deviceId = normalizeDeviceId(status.deviceId || "", false); } catch (_) { deviceId = ""; }
     const explicitOnline = status.online ?? status.connected;
     const statusText = cleanText(status.value ?? status.status ?? "", 40).toLowerCase();
     online = explicitOnline === undefined
@@ -1406,6 +1668,10 @@ function setMqttStatus(status) {
   }
   runtime.mqttStatus = { online, value, changedAt: now, message };
   localState.mqttStatus = runtime.mqttStatus;
+  if (deviceId) {
+    runtime.mqttStatusByDevice[deviceId] = runtime.mqttStatus;
+    localState.mqttStatusByDevice[deviceId] = runtime.mqttStatus;
+  }
   void persistLocal();
   return clonePublic(runtime.mqttStatus);
 }
@@ -1424,6 +1690,13 @@ function normalizeFirestoreDocument(document) {
 
 function dashboardRequest(reqOrOptions) {
   if (!reqOrOptions || typeof reqOrOptions !== "object") return { req: reqOrOptions, query: {} };
+  if (reqOrOptions.internal === true) {
+    return {
+      ...reqOrOptions,
+      req: reqOrOptions.req || null,
+      query: reqOrOptions.query || {}
+    };
+  }
   if (reqOrOptions.req) {
     return {
       ...reqOrOptions,
@@ -1437,7 +1710,7 @@ function dashboardRequest(reqOrOptions) {
   return { ...reqOrOptions, req: null, query: reqOrOptions.query || reqOrOptions };
 }
 
-async function readHistory(options = {}) {
+async function readHistory(options = {}, principal = null) {
   const hours = envNumberFromValue(options.hours ?? options.historyHours, 24, 1, 24 * 90);
   const limit = boundedInteger(options.limit, 360, 1, 1000);
   const deviceId = cleanText(options.deviceId || "", 80);
@@ -1455,7 +1728,10 @@ async function readHistory(options = {}) {
         .orderBy("timestampMs", "desc")
         .limit(limit);
       const snapshot = await query.get();
-      let records = snapshot.docs.map(normalizeFirestoreDocument).filter(Boolean);
+      let records = snapshot.docs
+        .map(normalizeFirestoreDocument)
+        .filter(Boolean)
+        .filter(item => principalCanReadRecord(principal, item));
       if (deviceId) records = records.filter(item => item.deviceId === deviceId);
       if (records.length) return records.reverse();
     } catch (error) {
@@ -1467,7 +1743,8 @@ async function readHistory(options = {}) {
   return localState.telemetry
     .filter(item => {
       const timestamp = Number(item.timestampMs) || new Date(item.timestamp || item.receivedAt || 0).getTime();
-      return timestamp >= fromMs && timestamp <= toMs && (!deviceId || item.deviceId === deviceId);
+      return principalCanReadRecord(principal, item) &&
+        timestamp >= fromMs && timestamp <= toMs && (!deviceId || item.deviceId === deviceId);
     })
     .sort((left, right) => (left.timestampMs || 0) - (right.timestampMs || 0))
     .slice(-limit)
@@ -1479,35 +1756,48 @@ function envNumberFromValue(value, fallback, min, max) {
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
 }
 
-async function readAlerts(limit = 50) {
+async function readAlerts(limit = 50, principal = null, deviceId = "") {
   const boundedLimit = boundedInteger(limit, 50, 1, 200);
+  const selectedDeviceId = deviceId ? normalizeDeviceId(deviceId, true) : "";
   if (runtime.firestore) {
     try {
       const snapshot = await runtime.firestore.collection(config.collections.alerts)
         .orderBy("timestamp", "desc")
         .limit(boundedLimit)
         .get();
-      const records = snapshot.docs.map(normalizeFirestoreDocument).filter(Boolean);
+      const records = snapshot.docs
+        .map(normalizeFirestoreDocument)
+        .filter(Boolean)
+        .filter(item => principalCanReadRecord(principal, item))
+        .filter(item => !selectedDeviceId || item.deviceId === selectedDeviceId);
       if (records.length) return records;
     } catch (error) {
       runtime.firebaseLastError = errorCode(error, "FIRESTORE_ALERT_READ_FAILED");
     }
   }
-  return localState.alerts.slice(-boundedLimit).reverse().map(clonePublic);
+  return localState.alerts
+    .filter(item => principalCanReadRecord(principal, item))
+    .filter(item => !selectedDeviceId || item.deviceId === selectedDeviceId)
+    .slice(-boundedLimit)
+    .reverse()
+    .map(clonePublic);
 }
 
-async function readSettings() {
-  if (runtime.firestore) {
+async function readSettings(principal) {
+  const uid = principalUid(principal);
+  let settings = settingsForUid(uid);
+  if (runtime.firestore && uid && uid !== "demo") {
     try {
-      const document = await runtime.firestore.collection(config.collections.system).doc("settings").get();
+      const document = await runtime.firestore.collection(config.collections.system).doc(settingsDocumentId(uid)).get();
       if (document.exists) {
-        localState.settings = normalizeSettings(document.data(), localState.settings, false);
+        settings = normalizeSettings(document.data(), settings, false);
+        localState.settingsByUid[uid] = settings;
       }
     } catch (error) {
       runtime.firebaseLastError = errorCode(error, "FIRESTORE_SETTINGS_READ_FAILED");
     }
   }
-  return clonePublic(localState.settings);
+  return clonePublic(settings);
 }
 
 async function readProfile(principal) {
@@ -1538,35 +1828,69 @@ function publicProfile(profile, principal) {
   };
 }
 
-function latestForDashboard(history) {
-  return clonePublic(runtime.latest || localState.latest || (history.length ? history[history.length - 1] : null));
+function latestForDashboard(history, principal, deviceId = "") {
+  const candidate = runtime.latest || localState.latest;
+  if (candidate && principalCanReadRecord(principal, candidate) && (!deviceId || candidate.deviceId === deviceId)) {
+    return clonePublic(candidate);
+  }
+  return clonePublic(history.length ? history[history.length - 1] : null);
 }
 
-function deviceStatus(latest) {
+function deviceStatus(latest, principal = null, selectedDeviceId = "") {
+  const resolvedDeviceId = selectedDeviceId || latest && latest.deviceId || DEFAULT_DEVICE_ID;
+  const hasAccess = principal ? principalHasDeviceAccess(principal, resolvedDeviceId) : true;
+  if (!hasAccess) {
+    return {
+      online: false,
+      mqtt: { online: false, value: "unassigned", changedAt: null, message: "Tai khoan chua duoc gan thiet bi" },
+      deviceId: null,
+      lastSeen: null,
+      ageMs: null,
+      rssi: null,
+      persistence: runtime.firestore ? "firestore" : "local",
+      firebaseHealthy: runtime.firebaseReady && !runtime.firebaseLastError,
+      assigned: false
+    };
+  }
   const lastSeenMs = latest ? new Date(latest.receivedAt || latest.timestamp || 0).getTime() : 0;
   const recentlySeen = Number.isFinite(lastSeenMs) && Date.now() - lastSeenMs <= config.deviceOfflineMs;
+  const mqttStatus = runtime.mqttStatusByDevice[resolvedDeviceId] || {
+    online: false,
+    value: "unknown",
+    changedAt: null,
+    message: "Chua nhan trang thai MQTT cua thiet bi nay"
+  };
   return {
-    online: Boolean(runtime.mqttStatus.online || recentlySeen),
-    mqtt: clonePublic(runtime.mqttStatus),
-    deviceId: latest && latest.deviceId || DEFAULT_DEVICE_ID,
+    online: Boolean(mqttStatus.online || recentlySeen),
+    mqtt: clonePublic(mqttStatus),
+    deviceId: resolvedDeviceId,
     lastSeen: lastSeenMs ? new Date(lastSeenMs).toISOString() : null,
     ageMs: lastSeenMs ? Math.max(0, Date.now() - lastSeenMs) : null,
     rssi: latest && latest.rssi !== undefined ? latest.rssi : null,
     persistence: runtime.firestore ? (runtime.firebaseLastError ? "local-fallback" : "firestore+local") : "local",
-    firebaseHealthy: runtime.firebaseReady && !runtime.firebaseLastError
+    firebaseHealthy: runtime.firebaseReady && !runtime.firebaseLastError,
+    assigned: true
   };
 }
 
 async function getDashboard(reqOrOptions) {
   const options = dashboardRequest(reqOrOptions);
   const principal = await verifyRequest(options, options.internal ? { internal: true, principal: options.principal } : {});
+  const query = options.query || options;
+  const ownedDeviceIds = deviceIdsForPrincipal(principal);
+  const requestedDeviceId = query.deviceId ? normalizeDeviceId(query.deviceId, true) : "";
+  if (requestedDeviceId && !principalHasDeviceAccess(principal, requestedDeviceId)) {
+    throw serviceError(403, "DEVICE_ACCESS_FORBIDDEN", "Tai khoan khong co quyen truy cap thiet bi nay.");
+  }
+  const selectedDeviceId = requestedDeviceId || ownedDeviceIds[0] || "";
+  const scopedQuery = { ...query, deviceId: selectedDeviceId };
   const [history, alerts, settings, profile] = await Promise.all([
-    readHistory(options.query || options),
-    readAlerts((options.query || options).alertLimit),
-    readSettings(),
+    readHistory(scopedQuery, principal),
+    readAlerts(query.alertLimit, principal, selectedDeviceId),
+    readSettings(principal),
     readProfile(principal)
   ]);
-  const latest = latestForDashboard(history);
+  const latest = latestForDashboard(history, principal, selectedDeviceId);
   return {
     latest,
     history,
@@ -1575,8 +1899,13 @@ async function getDashboard(reqOrOptions) {
     profile,
     telegram: publicTelegramStatus(principal),
     assistant: publicOpenAIStatus(),
-    status: deviceStatus(latest),
-    features: publicFeatures(),
+    status: deviceStatus(latest, principal, selectedDeviceId),
+    devices: ownedDeviceIds.map(deviceId => ({
+      deviceId,
+      selected: deviceId === selectedDeviceId,
+      lastSeen: localState.devices[deviceId] && localState.devices[deviceId].lastSeenAt || null
+    })),
+    features: publicFeatures(principal),
     serverTime: new Date().toISOString()
   };
 }
@@ -1619,14 +1948,17 @@ function normalizeSettings(input, previous = defaultSettings, strict = true) {
 }
 
 async function saveSettings(input, principal) {
-  const settings = normalizeSettings(input, localState.settings, true);
+  const uid = principalUid(principal);
+  if (!uid) throw serviceError(401, "AUTH_REQUIRED", "Can dang nhap de luu cau hinh.");
+  const settings = normalizeSettings(input, settingsForUid(uid), true);
   settings.updatedAt = new Date().toISOString();
-  settings.updatedBy = cleanText(principal && principal.uid || "system", 128);
-  localState.settings = settings;
+  settings.updatedBy = uid;
+  localState.settingsByUid[uid] = settings;
   await persistLocal();
   if (runtime.firestore) {
-    await firestoreSet(config.collections.system, "settings", {
+    await firestoreSet(config.collections.system, settingsDocumentId(uid), {
       ...settings,
+      ownerUid: uid,
       updatedAt: new Date(settings.updatedAt)
     }, true);
   }
@@ -2085,8 +2417,18 @@ async function handleAction(body, req) {
     }
 
     const principal = await verifyRequest(req);
-    if (principal.role === "viewer" && ["relay", "mode", "settings", "profile", "testalert", "test-alert"].includes(action)) {
+    if (principal.role === "viewer" && ["relay", "mode", "settings", "profile", "claimdevice", "claim-device", "testalert", "test-alert"].includes(action)) {
       throw serviceError(403, "ACTION_FORBIDDEN", "Tai khoan chi co quyen xem.");
+    }
+
+    if (action === "claimdevice" || action === "claim-device") {
+      const device = await claimDevice(input.deviceId ?? input.code, principal);
+      return actionResult(200, {
+        ok: true,
+        action: "claimDevice",
+        device,
+        message: "Da lien ket thiet bi voi tai khoan."
+      });
     }
 
     if (action === "relay") {
@@ -2094,8 +2436,9 @@ async function handleAction(body, req) {
       if (on === null) throw serviceError(422, "RELAY_STATE_INVALID", "Trang thai relay phai la ON hoac OFF.");
       const mode = controlMode(input.mode, "MANUAL", true);
       const requestId = makeId("web");
+      const requestedDeviceId = resolveDeviceForPrincipal(principal, input.deviceId);
       const payload = {
-        deviceId: cleanText(input.deviceId || DEFAULT_DEVICE_ID, 80) || DEFAULT_DEVICE_ID,
+        deviceId: requestedDeviceId,
         command: on ? "ON" : "OFF",
         mode,
         requestId
@@ -2117,7 +2460,7 @@ async function handleAction(body, req) {
         requestId,
         message: `Da gui lenh ${on ? "BAT" : "TAT"} relay.`
       }, {
-        topic: `${MQTT_TOPIC_ROOT}/command`,
+        topic: mqttTopic(payload.deviceId, "command"),
         payload: JSON.stringify(payload),
         qos: 1,
         retain: false
@@ -2126,7 +2469,7 @@ async function handleAction(body, req) {
 
     if (action === "mode") {
       const mode = controlMode(input.mode ?? input.value, "MANUAL", true);
-      const deviceId = cleanText(input.deviceId || DEFAULT_DEVICE_ID, 80) || DEFAULT_DEVICE_ID;
+      const deviceId = resolveDeviceForPrincipal(principal, input.deviceId);
       const requestId = makeId("web-mode");
       const settings = await saveSettings({ mode }, principal);
       const payload = { deviceId, command: "MODE", mode, requestId };
@@ -2147,7 +2490,7 @@ async function handleAction(body, req) {
         settings,
         message: `Da chuyen che do dieu khien sang ${mode}.`
       }, {
-        topic: `${MQTT_TOPIC_ROOT}/command`,
+        topic: mqttTopic(deviceId, "command"),
         payload: JSON.stringify(payload),
         qos: 1,
         retain: false
@@ -2205,7 +2548,8 @@ async function handleAction(body, req) {
     if (action === "testalert" || action === "test-alert") {
       const alert = {
         id: makeId("alert-test"),
-        deviceId: cleanText(input.deviceId || DEFAULT_DEVICE_ID, 80) || DEFAULT_DEVICE_ID,
+        deviceId: input.deviceId ? resolveDeviceForPrincipal(principal, input.deviceId) : (deviceIdsForPrincipal(principal)[0] || "account"),
+        ownerUid: principal.uid,
         type: "test",
         severity: "info",
         metric: "system",

@@ -11,6 +11,7 @@ Hệ thống IoT giám sát chất lượng nước hồ cá bằng ESP32, Node-
 - Gửi dữ liệu ESP32 tới Node-RED qua broker công cộng HiveMQ.
 - Theo dõi trực tiếp, lịch sử, cảnh báo và trạng thái thiết bị trên website.
 - Hỗ trợ tùy chọn Firebase Authentication/Firestore, Telegram và OpenAI hoặc endpoint tương thích; hệ thống vẫn chạy cục bộ khi chưa cấu hình các dịch vụ này.
+- Cô lập hồ sơ, cấu hình, lịch sử và cảnh báo theo Firebase UID; chỉ UID được gán trong backend mới xem và điều khiển ESP32 vật lý.
 
 ## Cấu trúc repository
 
