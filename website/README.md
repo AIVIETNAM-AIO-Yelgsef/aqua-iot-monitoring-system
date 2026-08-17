@@ -10,7 +10,7 @@ Giao diện web thật của hệ thống giám sát nước hồ cá, được 
 - Thiết bị và điều khiển relay
 - Cảnh báo và cấu hình ngưỡng
 - Liên kết Telegram theo từng tài khoản bằng deep-link và nút Start
-- Trợ lý AI
+- Trợ lý AI nhiều lượt dùng dữ liệu hồ thật, có fallback cục bộ
 - Cài đặt, hồ sơ và xác thực
 
 Trang mô phỏng thiết bị, mô hình 3D, BOM và bản vẽ kỹ thuật đã được loại bỏ khỏi bản web.

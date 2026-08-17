@@ -187,6 +187,9 @@
     telegramBusy: false,
     status: { mqttConnected: false, deviceOnline: false, storage: "local" },
     features: {},
+    assistantStatus: { configured: false, available: false, degraded: false, model: null, reason: null },
+    chatHistory: [],
+    chatBusy: false,
     profile: null,
     dashboardLoaded: false,
     polling: false,
@@ -257,6 +260,7 @@
     $("#auth-screen").classList.add("hidden");
     $("#app-shell").classList.remove("hidden");
     renderUser();
+    resetChat();
     renderThresholds();
     renderAerator();
     renderAlerts();
@@ -495,6 +499,7 @@
 
   function applyDashboard(data = {}) {
     const telegramWasPending = Boolean(state.telegramConnection?.pending && !state.telegramConnection?.connected);
+    const assistantSignature = `${state.assistantStatus.configured}:${state.assistantStatus.available}:${state.assistantStatus.reason || ""}:${state.assistantStatus.model || ""}`;
     const latest = data.latest ? normalizeRecord(data.latest) : null;
     if (latest) {
       state.temperature = latest.temperature;
@@ -533,6 +538,16 @@
       storage: String(backendStatus.storage || backendStatus.persistence || state.status.storage).includes("firestore") ? "firestore" : "local"
     };
     state.features = { ...state.features, ...(data.features || {}) };
+    if (data.assistant && typeof data.assistant === "object") {
+      state.assistantStatus = { ...state.assistantStatus, ...data.assistant };
+    } else {
+      state.assistantStatus = {
+        ...state.assistantStatus,
+        configured: Boolean(state.features.openaiConfigured ?? state.features.openai),
+        available: Boolean(state.features.openai),
+        degraded: Boolean(state.features.openaiConfigured && !state.features.openai)
+      };
+    }
     state.profile = data.profile || state.profile;
     if (data.telegram && typeof data.telegram === "object") {
       state.telegramConnection = { ...state.telegramConnection, ...data.telegram };
@@ -548,6 +563,9 @@
     renderAlerts();
     updateSensorDOM();
     renderIntegrationStatus();
+    renderAssistantStatus();
+    const nextAssistantSignature = `${state.assistantStatus.configured}:${state.assistantStatus.available}:${state.assistantStatus.reason || ""}:${state.assistantStatus.model || ""}`;
+    if (!state.chatBusy && state.chatHistory.length === 0 && assistantSignature !== nextAssistantSignature) resetChat();
     renderActivePage();
     if (telegramWasPending && state.telegramConnection.connected) {
       toast("Đã kết nối Telegram", "Telegram ID đã được lưu an toàn tại backend. Tài khoản này sẽ nhận cảnh báo của hồ cá.");
@@ -1228,7 +1246,78 @@
     });
   }
 
-  function addChatMessage(role, text) {
+  function assistantReasonLabel(reason) {
+    const labels = {
+      OPENAI_AUTH_FAILED: "khóa OpenAI không hợp lệ",
+      OPENAI_QUOTA_EXCEEDED: "tài khoản OpenAI đã hết hạn mức",
+      OPENAI_RATE_LIMITED: "OpenAI đang giới hạn tốc độ",
+      OPENAI_MODEL_UNAVAILABLE: "model OpenAI chưa khả dụng",
+      OPENAI_TIMEOUT: "OpenAI phản hồi quá chậm",
+      OPENAI_SDK_UNAVAILABLE: "backend thiếu OpenAI SDK",
+      OPENAI_NOT_CONFIGURED: "chưa cấu hình OpenAI",
+      OPENAI_UNAVAILABLE: "OpenAI tạm thời không khả dụng"
+    };
+    return labels[reason] || "OpenAI tạm thời không khả dụng";
+  }
+
+  function renderAssistantStatus() {
+    const mode = $("#assistant-mode");
+    const modeLabel = $("#assistant-mode-label");
+    const status = $("#assistant-status");
+    const statusLabel = status && $("span", status);
+    const send = $("#chat-send");
+    const clear = $("#clear-chat");
+    const form = $("#chat-form");
+    const service = state.assistantStatus || {};
+    let modeState = "offline";
+    let modeText = "Fallback cục bộ";
+    let statusState = "ready";
+    let statusText = "Trợ lý cục bộ sẵn sàng";
+
+    if (state.chatBusy) {
+      statusState = "busy";
+      statusText = "Đang phân tích dữ liệu hồ";
+    } else if (service.available) {
+      modeState = "online";
+      modeText = `OpenAI · ${service.model || "Responses API"}`;
+      statusText = "OpenAI sẵn sàng trả lời";
+    } else if (service.configured) {
+      modeState = "degraded";
+      modeText = "OpenAI lỗi · dùng fallback";
+      statusState = "degraded";
+      statusText = assistantReasonLabel(service.reason);
+    }
+
+    if (mode) mode.dataset.state = modeState;
+    if (modeLabel) modeLabel.textContent = modeText;
+    if (status) status.dataset.state = statusState;
+    if (statusLabel) statusLabel.textContent = statusText;
+    if (send) send.disabled = state.chatBusy;
+    if (clear) clear.disabled = state.chatBusy;
+    if (form) form.setAttribute("aria-busy", String(state.chatBusy));
+  }
+
+  function applyAssistantResult(result = {}) {
+    if (result.assistant && typeof result.assistant === "object") {
+      state.assistantStatus = { ...state.assistantStatus, ...result.assistant };
+    } else if (result.source === "openai") {
+      state.assistantStatus = { configured: true, available: true, degraded: false, model: result.model || null, reason: null };
+    } else if (result.degraded) {
+      state.assistantStatus = {
+        ...state.assistantStatus,
+        configured: result.reason !== "OPENAI_NOT_CONFIGURED",
+        available: false,
+        degraded: result.reason !== "OPENAI_NOT_CONFIGURED",
+        reason: result.reason || "OPENAI_UNAVAILABLE"
+      };
+    }
+    state.features.openai = Boolean(state.assistantStatus.available);
+    state.features.openaiConfigured = Boolean(state.assistantStatus.configured);
+    renderAssistantStatus();
+    renderIntegrationStatus();
+  }
+
+  function addChatMessage(role, text, meta = {}) {
     const row = document.createElement("div");
     row.className = `message-row ${role}`;
     const avatar = document.createElement("span");
@@ -1242,7 +1331,14 @@
     bubble.textContent = text;
     const stamp = document.createElement("span");
     stamp.className = "message-time";
-    stamp.textContent = `${formatTime(Date.now())} · ${role === "assistant" ? (state.features.openai ? "OpenAI" : "trợ lý cục bộ") : "bạn"}`;
+    const sourceLabel = role === "user"
+      ? "bạn"
+      : meta.source === "openai"
+        ? `OpenAI${meta.model ? ` · ${meta.model}` : ""}`
+        : meta.source === "local-fallback" || meta.source === "browser-fallback"
+          ? "trợ lý cục bộ"
+          : "Trợ lý Aqua";
+    stamp.textContent = `${formatTime(meta.timestamp || Date.now())} · ${sourceLabel}`;
     content.append(bubble, stamp);
     if (role === "assistant") row.append(avatar, content);
     else row.append(content, avatar);
@@ -1251,8 +1347,17 @@
   }
 
   function resetChat() {
+    if (state.chatBusy) return;
+    state.chatHistory = [];
     $("#chat-messages").innerHTML = "";
-    addChatMessage("assistant", `Xin chào ${firstName(state.user?.name)}! Tôi có thể dùng dữ liệu hiện tại, lịch sử, cảnh báo và trạng thái relay để trả lời. ${state.features.openai ? "OpenAI API đã sẵn sàng." : "Chưa có OPENAI_API_KEY nên hiện dùng câu trả lời cục bộ."}`);
+    const service = state.assistantStatus || {};
+    const availability = service.available
+      ? `OpenAI Responses API (${service.model || "model đã cấu hình"}) đã sẵn sàng.`
+      : service.configured
+        ? `OpenAI hiện lỗi: ${assistantReasonLabel(service.reason)}. Tôi sẽ dùng bộ trả lời cục bộ để hệ thống không bị gián đoạn.`
+        : "Chưa cấu hình OpenAI nên hiện dùng bộ trả lời cục bộ.";
+    addChatMessage("assistant", `Xin chào ${firstName(state.user?.name)}! Tôi có thể dùng dữ liệu cảm biến hiện tại, 24 giờ lịch sử, cảnh báo và trạng thái relay để trả lời nhiều lượt. ${availability}`);
+    renderAssistantStatus();
   }
 
   function answerQuestion(question) {
@@ -1284,22 +1389,45 @@
     if (text.includes("do duc") || text.includes("ts-300")) {
       return finite(state.turbidityRaw) === null ? "Chưa nhận dữ liệu TS-300B." : `TS-300B hiện có RAW ${state.turbidityRaw}${finite(state.turbidityVoltage) === null ? "" : `, điện áp module ${state.turbidityVoltage.toFixed(3)} V`}. Cảnh báo độ đục vẫn được ESP32 xử lý cục bộ bằng LED/OLED.`;
     }
-    return "OpenAI chưa được cấu hình. Tôi vẫn có thể trả lời cục bộ về pH, nhiệt độ, độ đục, relay, cảnh báo và lịch sử.";
+    return "Tôi có thể trả lời cục bộ về pH, nhiệt độ, độ đục, relay, cảnh báo và lịch sử. Hãy hỏi cụ thể một trong các nội dung đó.";
   }
 
   async function submitChat(question) {
     const clean = String(question || "").trim();
-    if (!clean) return;
+    if (!clean || state.chatBusy) return;
+    const previousHistory = state.chatHistory.slice(-10);
     addChatMessage("user", clean);
+    state.chatHistory.push({ role: "user", content: clean.slice(0, 500) });
+    state.chatBusy = true;
+    renderAssistantStatus();
     $("#typing-indicator").classList.remove("hidden");
     $("#chat-messages").scrollTop = $("#chat-messages").scrollHeight;
     try {
-      const result = await api.action("chat", { question: clean });
-      $("#typing-indicator").classList.add("hidden");
-      addChatMessage("assistant", result.answer || result.message || answerQuestion(clean));
+      const previousReason = state.assistantStatus.reason;
+      const result = await api.action("chat", { question: clean, history: previousHistory });
+      applyAssistantResult(result);
+      const answer = result.answer || result.message || answerQuestion(clean);
+      addChatMessage("assistant", answer, {
+        source: result.source,
+        model: result.model,
+        timestamp: result.replyAt
+      });
+      state.chatHistory.push({ role: "assistant", content: String(answer).slice(0, 500) });
+      state.chatHistory = state.chatHistory.slice(-10);
+      if (result.degraded && result.reason && result.reason !== previousReason) {
+        toast("Chatbot đang dùng fallback", assistantReasonLabel(result.reason), "warning", 4800);
+      }
     } catch (error) {
+      const answer = error.status === 429
+        ? error.message
+        : `${answerQuestion(clean)}\n\nKhông kết nối được chatbot backend nên câu trả lời này được tạo ngay trên trình duyệt.`;
+      addChatMessage("assistant", answer, { source: "browser-fallback" });
+      state.chatHistory.push({ role: "assistant", content: String(answer).slice(0, 500) });
+      state.chatHistory = state.chatHistory.slice(-10);
+    } finally {
+      state.chatBusy = false;
       $("#typing-indicator").classList.add("hidden");
-      addChatMessage("assistant", `${answerQuestion(clean)}\n\n(Lỗi backend: ${error.message})`);
+      renderAssistantStatus();
     }
   }
 
@@ -1357,7 +1485,14 @@
     if (values[0]) values[0].textContent = api.isFirebase ? "Đã cấu hình" : "Chế độ cục bộ";
     if (values[1]) values[1].textContent = state.status.mqttConnected ? "Đã kết nối" : "Chờ kết nối";
     if (values[2]) values[2].textContent = state.features.firestore ? "Đã kết nối" : "Lưu cục bộ";
-    if (values[3]) values[3].textContent = `${state.features.openai ? "OpenAI ✓" : "OpenAI —"} / ${state.features.telegram ? "Telegram ✓" : "Telegram —"}`;
+    if (values[3]) {
+      const openai = state.assistantStatus.available
+        ? "OpenAI ✓"
+        : state.assistantStatus.configured
+          ? "OpenAI lỗi"
+          : "OpenAI —";
+      values[3].textContent = `${openai} / ${state.features.telegram ? "Telegram ✓" : "Telegram —"}`;
+    }
   }
 
   async function init() {
@@ -1374,6 +1509,7 @@
     renderAlerts();
     renderAerator();
     updateSensorDOM();
+    renderAssistantStatus();
     updateClock();
     setInterval(updateClock, 1000);
     setInterval(refreshDashboard, 3000);
