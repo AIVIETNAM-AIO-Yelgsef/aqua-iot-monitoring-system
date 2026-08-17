@@ -12,8 +12,9 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const SERVICE_VERSION = "1.4.0";
+const SERVICE_VERSION = "1.5.0";
 const DEFAULT_DEVICE_ID = "esp32-aqua-01";
+const MQTT_TOPIC_ROOT = "aqua-iot/nhom18-24127175-24127257/esp32-aqua-01";
 const MAX_LOCAL_TELEMETRY = 10000;
 const MAX_LOCAL_ALERTS = 500;
 const MAX_LOCAL_ACTIVITY = 500;
@@ -2116,7 +2117,7 @@ async function handleAction(body, req) {
         requestId,
         message: `Da gui lenh ${on ? "BAT" : "TAT"} relay.`
       }, {
-        topic: "aquarium/command",
+        topic: `${MQTT_TOPIC_ROOT}/command`,
         payload: JSON.stringify(payload),
         qos: 1,
         retain: false
@@ -2146,7 +2147,7 @@ async function handleAction(body, req) {
         settings,
         message: `Da chuyen che do dieu khien sang ${mode}.`
       }, {
-        topic: "aquarium/command",
+        topic: `${MQTT_TOPIC_ROOT}/command`,
         payload: JSON.stringify(payload),
         qos: 1,
         retain: false

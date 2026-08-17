@@ -11,9 +11,9 @@
  *   Relay IN                -> GPIO26; relay jumper H = active HIGH
  *
  * MQTT topics:
- *   aquarium/data           ESP32 -> Node-RED telemetry JSON
- *   aquarium/status         ESP32 -> Node-RED online/offline retained LWT
- *   aquarium/command        Node-RED -> ESP32 relay/mode JSON command
+ *   <AQUA_MQTT_TOPIC_ROOT>/data      ESP32 -> Node-RED telemetry JSON
+ *   <AQUA_MQTT_TOPIC_ROOT>/status    ESP32 -> Node-RED online/offline retained LWT
+ *   <AQUA_MQTT_TOPIC_ROOT>/command   Node-RED -> ESP32 relay/mode JSON command
  */
 
 #include <WiFi.h>
@@ -34,8 +34,9 @@
 #else
 #define AQUA_WIFI_SSID "AQUA_IOT"
 #define AQUA_WIFI_PASSWORD "MAT_KHAU_WIFI_CUA_BAN"
-#define AQUA_MQTT_HOST "10.127.226.236"
-#define AQUA_MQTT_PORT 1884
+#define AQUA_MQTT_HOST "broker.emqx.io"
+#define AQUA_MQTT_PORT 1883
+#define AQUA_MQTT_TOPIC_ROOT "aqua-iot/nhom18-24127175-24127257/esp32-aqua-01"
 #define AQUA_MQTT_USERNAME ""
 #define AQUA_MQTT_PASSWORD ""
 #warning "Using example ESP32 credentials. Create aqua_secrets.h before uploading."
@@ -53,9 +54,9 @@ const char *FIRMWARE_VERSION = "2.0.0";
 
 // ==================== MQTT CONTRACT ====================
 
-const char *TOPIC_DATA = "aquarium/data";
-const char *TOPIC_STATUS = "aquarium/status";
-const char *TOPIC_COMMAND = "aquarium/command";
+const char *TOPIC_DATA = AQUA_MQTT_TOPIC_ROOT "/data";
+const char *TOPIC_STATUS = AQUA_MQTT_TOPIC_ROOT "/status";
+const char *TOPIC_COMMAND = AQUA_MQTT_TOPIC_ROOT "/command";
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
