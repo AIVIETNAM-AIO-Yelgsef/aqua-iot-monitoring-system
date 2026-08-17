@@ -9,6 +9,9 @@ nodered/*.pid
 # Local configuration and credentials
 nodered/flows_cred.json
 **/service-account*.json
+**/*firebase-adminsdk*.json
+api sdk gì đó.txt
+Hướng dẫn sử dụng kích hoạt Codex.docx
 .env
 .env.*
 !.env.example
@@ -21,3 +24,6 @@ Thumbs.db
 *.tmp
 *.bak
 *.swp
+
+# Local ESP32 network/MQTT credentials
+firmware/aqua_iot_nodered/aqua_secrets.h

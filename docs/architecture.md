@@ -27,11 +27,15 @@ Node-RED là thành phần trung tâm. Website không kết nối trực tiếp 
 ```text
 firmware/
   aqua_iot_nodered/aqua_iot_nodered.ino  Firmware ESP32
+  aqua_iot_nodered/aqua_secrets.example.h Mẫu cấu hình bí mật khi cần
+  AquaIoT-Setup-QR.png                    QR mở trang provisioning
+  README.md                               Hướng dẫn phần cứng và Wi-Fi
 
 nodered/
-  flows.json                             Bốn flow Node-RED
+  flows.json                             Một tab với bốn vùng chức năng
   settings.js                            Cấu hình Node-RED và static website
   lib/aqua-services.js                   Logic dùng chung của các Function node
+  test/                                  Test auth và cô lập đa thiết bị
   data/aqua-local.json                   Dữ liệu runtime cục bộ, không đưa lên Git
 
 website/
@@ -55,6 +59,8 @@ File `nodered/data/aqua-local.json` được tạo khi chạy. Có thể đổi 
 - Hiển thị dữ liệu trên OLED.
 - Cảnh báo độ đục tại chỗ bằng LED xanh/đỏ và OLED.
 - Kết nối Wi-Fi và HiveMQ Public.
+- Tạo Device ID ổn định dạng `aqua-xxxxxxxxxxxx` từ MAC Wi-Fi.
+- Cho phép cấu hình Wi-Fi lần đầu qua access point và captive portal.
 - Gửi telemetry mỗi 3 giây khi MQTT đang kết nối.
 - Gửi trạng thái `online`; sử dụng Last Will `offline` khi mất kết nối.
 - Nhận lệnh MQTT để bật/tắt relay hoặc đổi chế độ MANUAL/AUTO.
@@ -63,6 +69,7 @@ File `nodered/data/aqua-local.json` được tạo khi chạy. Có thể đổi 
 ### Node-RED
 
 - Subscribe telemetry và trạng thái thiết bị từ MQTT.
+- Lấy Device ID từ topic MQTT và không tin trường chủ sở hữu trong payload.
 - Kiểm tra, chuẩn hóa và lưu dữ liệu.
 - Cập nhật Dashboard kỹ thuật theo thời gian thực.
 - Cung cấp API cho website.
@@ -70,6 +77,7 @@ File `nodered/data/aqua-local.json` được tạo khi chạy. Có thể đổi 
 - Kiểm tra ngưỡng nhiệt độ và pH.
 - Lưu JSON cục bộ và đồng bộ Firestore nếu được cấu hình.
 - Gửi Telegram và gọi OpenAI nếu có khóa tương ứng.
+- Liên kết một Device ID đã xuất hiện với đúng một UID và cô lập dữ liệu theo UID.
 
 ### Website
 
@@ -77,13 +85,14 @@ File `nodered/data/aqua-local.json` được tạo khi chạy. Có thể đổi 
 - Gọi API Node-RED, không subscribe MQTT trực tiếp.
 - Hiển thị dữ liệu hiện tại, lịch sử, biểu đồ, cảnh báo và trạng thái relay.
 - Gửi lệnh relay, đổi chế độ, lưu ngưỡng và hồ sơ.
-- Hỗ trợ Firebase Authentication hoặc chế độ demo cục bộ.
+- Hỗ trợ Firebase Authentication, tài khoản cục bộ độc lập hoặc chế độ demo.
+- Yêu cầu Device ID khi đăng ký và cho phép claim thiết bị trong phần cài đặt.
 - Dùng Chart.js được phục vụ tại `/vendor/chartjs`.
 - Poll API dashboard mỗi 3 giây.
 
-## 4. Bốn flow Node-RED
+## 4. Flow Node-RED
 
-File flow duy nhất là `nodered/flows.json`. Khi chạy `npm start`, Node-RED tự khởi động cả bốn flow cùng lúc.
+File `nodered/flows.json` dùng một tab `Aqua IoT`, chia thành bốn vùng chức năng: MQTT ingest, dashboard kỹ thuật, device control và Web API.
 
 ```text
 01 - MQTT Ingest
@@ -100,21 +109,14 @@ File flow duy nhất là `nodered/flows.json`. Khi chạy `npm start`, Node-RED 
   command ---------------> MQTT -> ESP32
 ```
 
-| Flow | Nội dung đang thực hiện |
+| Vùng | Nội dung đang thực hiện |
 |---|---|
-| `01 - MQTT Ingest` | Nhận telemetry/status, parse JSON, chuẩn hóa, lưu lịch sử và phát hiện cảnh báo. |
-| `02 - Realtime Dashboard` | Hiển thị gauge, text, chart, trạng thái MQTT và nhận thao tác relay từ Dashboard kỹ thuật. |
-| `03 - Device Control` | Gộp lệnh từ Dashboard và Web API rồi publish tới topic command. |
-| `04 - Web API` | Cung cấp `/api/config`, `/api/dashboard`, `/api/action` và `/api/health`. |
+| MQTT Ingest | Nhận telemetry/status, parse JSON, chuẩn hóa, lưu lịch sử và phát hiện cảnh báo. |
+| Realtime Dashboard | Hiển thị gauge, text, chart, trạng thái MQTT và nhận thao tác relay từ Dashboard kỹ thuật. |
+| Device Control | Gộp lệnh từ Dashboard và Web API rồi publish tới topic command. |
+| Web API | Cung cấp `/api/config`, `/api/dashboard`, `/api/action` và `/api/health`. |
 
-Các flow trao đổi qua bốn Link node:
-
-- `telemetry.valid`
-- `device.status`
-- `command.from.dashboard`
-- `command.from.api`
-
-Các Function node trên canvas chỉ có một dòng gọi hàm tương ứng trong `nodered/lib/aqua-services.js`. Cách tổ chức này giữ flow dễ nhìn và tránh chép lại cùng một logic ở nhiều node.
+Các Function node gọi hàm trong `nodered/lib/aqua-services.js`. MQTT input dùng wildcard Device ID; API action trả kèm topic MQTT đích để node output publish đúng thiết bị.
 
 ## 5. Địa chỉ khi chạy
 
@@ -144,19 +146,19 @@ Port mặc định là `1880`, có thể đổi bằng biến `PORT`.
 
 ### Topic
 
-Device ID hiện tại là `hcmus-aqua-18`.
+Mỗi ESP32 có Device ID riêng, ví dụ `aqua-20500de64424`. Topic root là `aqua-iot/nhom18-24127175-24127257/<deviceId>`.
 
 | Topic | Hướng | QoS/retain | Nội dung |
 |---|---|---|---|
-| `aquaiot/hcmus-aqua-18/telemetry` | ESP32 → Node-RED | QoS 0, không retain | Dữ liệu cảm biến và trạng thái relay. |
-| `aquaiot/hcmus-aqua-18/status` | ESP32 → Node-RED | QoS 1, retain | `online` hoặc Last Will `offline`. |
-| `aquaiot/hcmus-aqua-18/command` | Node-RED → ESP32 | QoS 1, không retain | Lệnh relay hoặc chế độ điều khiển. |
+| `aqua-iot/nhom18-24127175-24127257/<deviceId>/data` | ESP32 → Node-RED | QoS 0, không retain | Dữ liệu cảm biến và trạng thái relay. |
+| `aqua-iot/nhom18-24127175-24127257/<deviceId>/status` | ESP32 → Node-RED | QoS 1, retain | `online` hoặc Last Will `offline`. |
+| `aqua-iot/nhom18-24127175-24127257/<deviceId>/command` | Node-RED → ESP32 | QoS 1, không retain | Lệnh relay hoặc chế độ điều khiển. |
 
 ### Telemetry do firmware gửi
 
 ```json
 {
-  "deviceId": "hcmus-aqua-18",
+  "deviceId": "aqua-20500de64424",
   "temperature": 27.5,
   "turbidityRaw": 1234,
   "turbidityVoltage": 2.45,
@@ -171,7 +173,7 @@ Device ID hiện tại là `hcmus-aqua-18`.
 }
 ```
 
-Backend chấp nhận thêm một số tên tương đương như `temperatureC`, `pH`, `relay`, `aerator`, `wifiRssi`, `ntu`, `poVoltage` và `aoVoltage`.
+Backend chấp nhận thêm một số tên tương đương như `temperatureC`, `pH`, `relay`, `aerator`, `wifiRssi`, `ntu`, `poVoltage` và `aoVoltage`. Device ID có thẩm quyền được tách từ topic MQTT; payload không thể đổi thiết bị đích.
 
 Sau khi chuẩn hóa, backend bổ sung:
 
@@ -188,7 +190,7 @@ Lệnh từ Node-RED có dạng:
 
 ```json
 {
-  "deviceId": "hcmus-aqua-18",
+  "deviceId": "aqua-20500de64424",
   "command": "ON",
   "mode": "MANUAL",
   "requestId": "web-..."
@@ -223,13 +225,16 @@ Mọi telemetry hợp lệ đều cập nhật `state.latest` để Dashboard nh
 File mặc định: `nodered/data/aqua-local.json`.
 
 ```text
-latest       Telemetry mới nhất
+latest       Telemetry mới nhất toàn hệ thống để tương thích
 telemetry    Lịch sử cảm biến
 alerts       Danh sách cảnh báo
 activity     Lịch sử lệnh relay/chế độ
-settings     Ngưỡng và cấu hình
+settingsByUid Ngưỡng và cấu hình theo tài khoản
+devices      Quan hệ Device ID và owner UID
 profiles     Hồ sơ người dùng
-mqttStatus   Trạng thái MQTT gần nhất
+localAccounts Tài khoản cục bộ đã băm mật khẩu
+localSessions Phiên cục bộ lưu bằng hash token
+mqttStatusByDevice Trạng thái MQTT theo thiết bị
 ```
 
 JSON cục bộ luôn được dùng làm fallback, kể cả khi Firebase đã được cấu hình.
@@ -242,7 +247,8 @@ JSON cục bộ luôn được dùng làm fallback, kể cả khi Firebase đã 
 | `aquaAlerts/{id}` | Cảnh báo tự động và cảnh báo thử. |
 | `aquaActivity/{id}` | Lệnh relay và lệnh đổi chế độ. |
 | `aquaProfiles/{uid}` | Hồ sơ người dùng. |
-| `aquaSystem/settings` | Ngưỡng, Telegram và chế độ điều khiển. |
+| `aquaDevices/{deviceId}` | Chủ sở hữu duy nhất của Device ID. |
+| `aquaSystem/settings-{uid}` | Ngưỡng, Telegram và chế độ điều khiển theo UID. |
 
 Nếu Firestore lỗi, backend ghi nhận lỗi và tiếp tục trả dữ liệu cục bộ.
 
@@ -317,11 +323,15 @@ Các action đang hỗ trợ:
 
 | Action | Dữ liệu chính | Kết quả |
 |---|---|---|
+| `authRegister` | `name`, `email`, `password`, `deviceId` | Tạo tài khoản cục bộ, claim thiết bị và trả token phiên. |
+| `authLogin` / `authSession` / `authLogout` | Thông tin đăng nhập hoặc token | Quản lý phiên tài khoản cục bộ. |
+| `claimDevice` | `deviceId` | Liên kết thiết bị đã xuất hiện với UID hiện tại. |
 | `relay` | `command`, `state`, `value` hoặc `on` | Gửi ON/OFF và chuyển MANUAL. |
 | `mode` | `mode` hoặc `value` | Gửi AUTO/MANUAL. |
 | `settings` | Ngưỡng, Telegram, mode | Lưu cấu hình. |
 | `profile` | `name`, `pondName` | Lưu hồ sơ. |
 | `chat` | `question` hoặc `message` | Trả lời bằng OpenAI hoặc câu trả lời cục bộ. |
+| `telegramConnect` / `telegramStatus` / `telegramDisconnect` | Không bắt buộc | Quản lý liên kết Telegram theo UID. |
 | `testAlert` | Không bắt buộc | Tạo và có thể gửi cảnh báo thử. |
 
 Tài khoản có role `viewer` không được dùng relay, mode, settings, profile và test alert.
@@ -332,7 +342,7 @@ Không yêu cầu đăng nhập. Trả trạng thái backend, thiết bị, pers
 
 ## 10. Xác thực
 
-Hệ thống có hai chế độ:
+Hệ thống có ba chế độ:
 
 ### Chế độ demo
 
@@ -340,6 +350,13 @@ Hệ thống có hai chế độ:
 - Phiên demo được lưu trong `sessionStorage` hoặc `localStorage` của trình duyệt.
 - Backend xem người dùng là `demo`.
 - Đây không phải cơ chế bảo mật cho môi trường thật.
+
+### Tài khoản cục bộ
+
+- Dùng khi Firebase Admin chưa cấu hình và `AQUA_ALLOW_LOCAL_AUTH=true`.
+- Mỗi tài khoản có UID riêng; mật khẩu được băm bằng `scrypt` và token phiên chỉ lưu dạng hash ở backend.
+- Khi đăng ký, Device ID phải hợp lệ, đã gửi telemetry/status và chưa thuộc UID khác.
+- Phù hợp mạng LAN/demo; khi public Internet nên dùng Firebase và tắt local/demo auth.
 
 ### Firebase Authentication
 
@@ -363,6 +380,9 @@ Backend hỗ trợ role `admin`, `user` và `viewer`. Role `viewer` được đ�
 | `PORT` | Port Node-RED | `1880` |
 | `NODE_RED_CREDENTIAL_SECRET` | Khóa mã hóa credential Node-RED | Không có |
 | `AQUA_ALLOW_DEMO_AUTH` | Cho phép đăng nhập demo | `true` |
+| `AQUA_ALLOW_LOCAL_AUTH` | Cho phép tài khoản cục bộ | `true` |
+| `AQUA_LOCAL_SESSION_TTL_MS` | Thời hạn token phiên cục bộ | `2592000000` |
+| `AQUA_DEVICE_OWNER_UID` | UID tương thích cho thiết bị legacy | Để trống |
 | `AQUA_LOCAL_DATA_PATH` | Đường dẫn file JSON | `nodered/data/aqua-local.json` |
 | `CLOUD_SAVE_INTERVAL_MS` | Chu kỳ lưu lịch sử | `60000` |
 | `ALERT_COOLDOWN_MS` | Cooldown cảnh báo | `600000` |
@@ -374,12 +394,13 @@ Backend hỗ trợ role `admin`, `user` và `viewer`. Role `viewer` được đ�
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | File service account | Để trống |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Service account dạng JSON | Để trống |
 | `FIREBASE_USE_APPLICATION_DEFAULT` | Dùng Application Default Credentials | `false` |
+| `FIREBASE_CHECK_REVOKED_TOKENS` | Kiểm tra Firebase token đã bị thu hồi | `false` |
+| `FIREBASE_*_COLLECTION` | Ghi đè tên collection Firestore | Tên `aqua...` tương ứng |
 | `TELEGRAM_BOT_TOKEN` | Token Telegram bot | Để trống |
 | `TELEGRAM_CHAT_ID` | Chat nhận cảnh báo | Để trống |
 | `OPENAI_API_KEY` | OpenAI API key | Để trống |
 | `OPENAI_MODEL` | Model chatbot | `gpt-5.4-nano` |
-
-Biến `FIREBASE_CHECK_REVOKED_TOKENS` có trong `.env.example` nhưng code hiện tại chưa sử dụng khi gọi `verifyIdToken`.
+| `OPENAI_BASE_URL` | Endpoint Responses API tương thích HTTPS | OpenAI chính thức |
 
 ## 12. Phần cứng và chân kết nối
 
@@ -431,7 +452,7 @@ Firmware publish status `online` dạng retained. Nếu mất MQTT ngoài ý mu�
 - Công thức pH đã có, nhưng hai hằng số `PH4_VOLTAGE` và `PH7_VOLTAGE` vẫn phải được thay bằng số đo thực tế của đầu dò.
 - Firmware chưa tính NTU đã hiệu chuẩn; hệ thống chủ yếu hiển thị RAW và điện áp độ đục.
 - Chế độ AUTO mới chỉ được truyền, lưu và hiển thị; chưa có quy tắc tự động bật/tắt relay.
-- Dashboard kỹ thuật Node-RED gửi lệnh relay trực tiếp qua MQTT, không đi qua xác thực của Web API.
+- Dashboard kỹ thuật Node-RED là giao diện quản trị cục bộ, không dùng phiên đăng nhập của Web API.
 - Node-RED Editor và Dashboard kỹ thuật chưa được bảo vệ bằng `adminAuth`.
 - HiveMQ Public không có bảo mật riêng cho topic của dự án.
 - Chế độ demo chỉ phù hợp để học tập và trình diễn.
