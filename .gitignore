@@ -23,3 +23,6 @@ Thumbs.db
 *.tmp
 *.bak
 *.swp
+
+# Local ESP32 network/MQTT credentials
+firmware/aqua_iot_nodered/aqua_secrets.h
