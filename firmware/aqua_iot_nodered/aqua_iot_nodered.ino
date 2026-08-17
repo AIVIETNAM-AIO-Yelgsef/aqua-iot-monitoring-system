@@ -70,6 +70,13 @@ float turbidityVoltage = 0.0f;
 float phRaw = 0.0f;
 float phADC = 0.0f;
 float phVoltage = 0.0f;
+float phValue = NAN;
+
+// Hieu chuan 2 diem: thay hai dien ap nay bang so do cua chinh dau do.
+// Cach lam: ngam vao dung dich pH 4 va pH 7, doc phVoltage tren Serial.
+const float PH4_VOLTAGE = 3.00f;
+const float PH7_VOLTAGE = 2.50f;
+const bool PH_CALIBRATED = true;
 
 // ==================== CANH BAO DO DUC CUC BO ====================
 
@@ -109,6 +116,16 @@ const unsigned long MEASUREMENT_INTERVAL = 3000;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 const unsigned long WIFI_RETRY_INTERVAL = 10000;
 const unsigned long ALERT_BLINK_INTERVAL = 350;
+
+float calculatePH(float voltage) {
+  if (!PH_CALIBRATED || fabs(PH4_VOLTAGE - PH7_VOLTAGE) < 0.01f) {
+    return NAN;
+  }
+
+  const float slope = (7.0f - 4.0f) / (PH7_VOLTAGE - PH4_VOLTAGE);
+  const float value = 4.0f + (voltage - PH4_VOLTAGE) * slope;
+  return constrain(value, 0.0f, 14.0f);
+}
 
 // ==================== RELAY, CHE DO VA LED ====================
 
@@ -265,9 +282,12 @@ void updateOLED() {
   display.println(" V");
 
   display.setCursor(0, 36);
-  display.print("pH Po: ");
-  display.print(phVoltage, 2);
-  display.println(" V");
+  display.print("pH: ");
+  if (isnan(phValue)) {
+    display.println("CHUA HC");
+  } else {
+    display.println(phValue, 2);
+  }
 
   display.setCursor(0, 48);
   display.print("R:");
@@ -314,6 +334,7 @@ void readAllSensors() {
 
   readAnalogAverage(PH_PIN, phRaw, phADC);
   phVoltage = phADC * DIVIDER_FACTOR;
+  phValue = calculatePH(phVoltage);
 
   evaluateTurbidityAlert();
 }
@@ -459,7 +480,12 @@ void publishTelemetry() {
   payload += "\"turbidityAlert\":" + String(turbidityAlert ? "true" : "false") + ",";
   payload += "\"phRaw\":" + String(phRaw, 0) + ",";
   payload += "\"phVoltage\":" + String(phVoltage, 3) + ",";
-  payload += "\"ph\":null,";
+  if (isnan(phValue)) {
+    payload += "\"ph\":null,";
+  } else {
+    payload += "\"ph\":" + String(phValue, 2) + ",";
+  }
+  payload += "\"phCalibrated\":" + String(!isnan(phValue) ? "true" : "false") + ",";
   payload += "\"relayStatus\":\"" + String(relayOn ? "ON" : "OFF") + "\",";
   payload += "\"controlMode\":\"" + String(relayModeText()) + "\",";
   payload += "\"rssi\":" + String(WiFi.RSSI());

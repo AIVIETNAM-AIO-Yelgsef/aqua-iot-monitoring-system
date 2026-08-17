@@ -6,7 +6,7 @@ Hệ thống gồm web responsive, Node-RED backend, HiveMQ Public và firmware 
 
 | ID báo cáo | Chức năng |
 |---|---|
-| CB1 | Hiển thị nhiệt độ và pH thật; pH hiện “chưa hiệu chuẩn” thay vì tạo số giả |
+| CB1 | Hiển thị nhiệt độ và pH thật; firmware tính pH bằng hiệu chuẩn hai điểm pH 4/7 |
 | CB2 | Bật/tắt relay từ web qua MQTT, có phản hồi ESP32 và chế độ MANUAL/AUTO |
 | YC1 | ESP32 tự cảnh báo độ đục bằng LED xanh/đỏ và OLED, không phụ thuộc Internet |
 | YC4 | Firestore lưu telemetry, cảnh báo, hồ sơ và lịch sử lệnh; có kho JSON dự phòng |
@@ -36,6 +36,21 @@ Các địa chỉ:
 - MQTT Broker: `broker.hivemq.com:1883`
 
 Điện thoại cùng Wi-Fi mở `http://IP_MAY_TIN:1880/`. Xem IPv4 bằng `ipconfig`; chỉ cần cho phép Node.js qua Windows Firewall ở mạng **Private** nếu cần.
+
+## Cấu trúc flow Node-RED
+
+`flows.json` được chia thành bốn tab, mỗi tab chỉ có một trách nhiệm:
+
+| Tab | Trách nhiệm |
+|---|---|
+| `01 - MQTT Ingest` | Nhận telemetry/status, parse, validate, normalize và lưu dữ liệu |
+| `02 - Realtime Dashboard` | Nhận telemetry hợp lệ, cập nhật gauge/chart và nhận thao tác relay |
+| `03 - Device Control` | Nhận lệnh từ Dashboard hoặc Web API và publish MQTT tới ESP32 |
+| `04 - Web API` | Cung cấp `/api/config`, `/api/dashboard`, `/api/action`, `/api/health` |
+
+Các tab không nối dây trực tiếp xuyên flow. Chúng giao tiếp qua các Link node có tên: `telemetry.valid`, `device.status`, `command.from.dashboard` và `command.from.api`.
+
+Các Function node trên canvas chỉ gọi một helper của `lib/aqua-services.js`. Validation, định dạng dashboard, MQTT command và HTTP response được viết một lần trong service thay vì lặp lại trong từng flow.
 
 ## Cấu hình Firebase, Telegram và OpenAI
 
@@ -89,7 +104,16 @@ HiveMQ Public không cần tài khoản và chỉ phù hợp cho demo/học tậ
 
 Sơ đồ chân: DS18B20 GPIO13; pH GPIO34; độ đục GPIO35; LED xanh/đỏ GPIO18/19 qua 330Ω; relay GPIO26; OLED SDA22/SCL23 địa chỉ 0x3C. Hai analog dùng cầu chia module → 20kΩ → ADC → 4,7kΩ → GND.
 
-Ngưỡng độ đục mặc định trong firmware là điện áp module `< 2,50 V`; đây chỉ là điểm bắt đầu, cần hiệu chuẩn bằng mẫu nước thật. Chế độ AUTO hiện được truyền và hiển thị nhưng không tự bật relay vì proposal chưa xác định quy tắc an toàn. pH cũng phải hiệu chuẩn trước khi web hiển thị/Telegram cảnh báo pH.
+### Hiệu chuẩn pH
+
+1. Ngâm đầu dò vào dung dịch pH 4 và ghi `phVoltage` từ Serial Monitor.
+2. Rửa đầu dò, ngâm vào dung dịch pH 7 và ghi điện áp.
+3. Thay hai số vào `PH4_VOLTAGE` và `PH7_VOLTAGE` trong firmware.
+4. Nạp lại firmware. Payload MQTT sẽ có `ph` và `phCalibrated: true`.
+
+Hai giá trị mặc định chỉ dùng để bắt đầu thử nghiệm, không thay thế việc đo bằng dung dịch chuẩn.
+
+Ngưỡng độ đục mặc định trong firmware là điện áp module `< 2,50 V`; đây chỉ là điểm bắt đầu, cần hiệu chuẩn bằng mẫu nước thật. Chế độ AUTO hiện được truyền và hiển thị nhưng không tự bật relay vì proposal chưa xác định quy tắc an toàn.
 
 ## API backend
 

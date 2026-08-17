@@ -23,6 +23,13 @@ docs/       Kiến trúc và contract MQTT tối giản
 
 Luồng chính chỉ gồm: `ESP32 -> HiveMQ Public -> Node-RED -> website`. Xem [`docs/architecture.md`](docs/architecture.md).
 
+## Cách tổ chức code
+
+- Firmware dùng các hàm Arduino thông thường, không tạo class hoặc framework riêng.
+- Node-RED chia đúng bốn flow theo nhiệm vụ; Function node chỉ gọi các hàm ngắn trong một file service.
+- Website dùng JavaScript thuần và Chart.js, không có framework frontend, dữ liệu giả hoặc lớp lưu trữ riêng.
+- Firebase, Telegram và OpenAI là tùy chọn; thiếu cấu hình thì luồng MQTT và dữ liệu JSON cục bộ vẫn chạy.
+
 ## Chạy hệ thống
 
 1. Cài Node.js 20 trở lên. Không cần cài Node-RED global hoặc Mosquitto.

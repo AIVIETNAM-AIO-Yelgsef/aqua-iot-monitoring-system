@@ -5,14 +5,6 @@
   const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
   const api = window.AquaAPI;
   const HOUR = 60 * 60 * 1000;
-  const STORAGE = {
-    accounts: "aqua_iot_demo_accounts",
-    session: "aqua_iot_demo_session",
-    aerator: "aqua_iot_aerator_state",
-    thresholds: "aqua_iot_thresholds",
-    alerts: "aqua_iot_demo_alerts",
-    telegram: "aqua_iot_telegram_demo"
-  };
 
   const pageTitles = {
     overview: "Tổng quan",
@@ -52,33 +44,7 @@
     month: "2-digit"
   });
 
-  const storage = {
-    get(key, fallback = null, session = false) {
-      try {
-        const raw = (session ? sessionStorage : localStorage).getItem(key);
-        return raw === null ? fallback : JSON.parse(raw);
-      } catch (_) {
-        return fallback;
-      }
-    },
-    set(key, value, session = false) {
-      try {
-        (session ? sessionStorage : localStorage).setItem(key, JSON.stringify(value));
-        return true;
-      } catch (_) {
-        return false;
-      }
-    },
-    remove(key, session = false) {
-      try { (session ? sessionStorage : localStorage).removeItem(key); } catch (_) { /* noop */ }
-    }
-  };
-
   function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
-  function round(value, digits = 1) {
-    const factor = 10 ** digits;
-    return Math.round(value * factor) / factor;
-  }
   function finite(value) {
     if (value === null || value === undefined || value === "") return null;
     return Number.isFinite(Number(value)) ? Number(value) : null;
@@ -91,10 +57,6 @@
     if (typeof value === "number") return value < 1e12 ? value * 1000 : value;
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) ? parsed : Date.now();
-  }
-  function pseudoRandom(seed) {
-    const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-    return value - Math.floor(value);
   }
   function normalizeText(text) {
     return String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
@@ -120,44 +82,6 @@
     return `${days} ngày trước`;
   }
 
-  function makeHistory() {
-    const records = [];
-    const end = Date.now();
-    for (let hoursAgo = 719; hoursAgo >= 0; hoursAgo -= 1) {
-      const index = 719 - hoursAgo;
-      const daily = Math.sin((index % 24) / 24 * Math.PI * 2 - 1.1);
-      const slow = Math.sin(index / 57);
-      const noise = (pseudoRandom(index + 17) - 0.5);
-      const temperature = 27.1 + daily * 0.55 + slow * 0.24 + noise * 0.18;
-      const ph = 7.16 + Math.sin(index / 31 + 0.7) * 0.17 + (pseudoRandom(index + 91) - 0.5) * 0.08;
-      records.push({
-        timestamp: end - hoursAgo * HOUR,
-        temperature: round(temperature, 1),
-        ph: round(clamp(ph, 6.75, 7.55), 2)
-      });
-    }
-    records[records.length - 1] = { timestamp: end, temperature: 27.4, ph: 7.2 };
-    return records;
-  }
-
-  function makeLiveBuffer(current) {
-    return Array.from({ length: 30 }, (_, index) => ({
-      timestamp: Date.now() - (29 - index) * 5000,
-      temperature: round(current.temperature + Math.sin(index / 4) * 0.12 + (pseudoRandom(index) - .5) * .06, 1),
-      ph: round(current.ph + Math.cos(index / 5) * 0.025 + (pseudoRandom(index + 30) - .5) * .02, 2)
-    }));
-  }
-
-  function defaultAlerts() {
-    const now = Date.now();
-    return [
-      { id: "alert-ph-low", type: "danger", title: "pH thấp hơn ngưỡng demo", message: "Giá trị mô phỏng 6.3 pH · ngưỡng demo 6.5", timestamp: now - 2.4 * HOUR, unread: true, delivery: "Telegram mô phỏng" },
-      { id: "alert-temp-high", type: "warning", title: "Nhiệt độ vượt ngưỡng demo", message: "Giá trị mô phỏng 30.6°C · ngưỡng demo 30.0°C", timestamp: now - 26 * HOUR, unread: true, delivery: "Telegram mô phỏng" },
-      { id: "alert-ph-high", type: "warning", title: "pH cao hơn ngưỡng demo", message: "Giá trị mô phỏng 8.2 pH · ngưỡng demo 8.0", timestamp: now - 73 * HOUR, unread: false, delivery: "Telegram mô phỏng" }
-    ];
-  }
-
-  const savedThresholds = storage.get(STORAGE.thresholds, null);
   const state = {
     currentPage: "overview",
     user: null,
@@ -172,7 +96,6 @@
     aerator: false,
     mode: "MANUAL",
     aeratorPending: false,
-    aeratorChangedAt: 0,
     history: [],
     liveBuffer: [],
     liveMetric: "both",
@@ -180,16 +103,18 @@
     historyMetric: "both",
     historyPage: 1,
     historySearch: "",
-    thresholds: savedThresholds && validThresholdObject(savedThresholds) ? savedThresholds : { tempMin: 24, tempMax: 30, phMin: 6.5, phMax: 8 },
+    thresholds: { tempMin: 24, tempMax: 30, phMin: 6.5, phMax: 8 },
     alerts: [],
     telegram: false,
+    telegramConnection: { configured: false, connected: false, pending: false, account: null },
+    telegramBusy: false,
+    chatHistory: [],
     status: { mqttConnected: false, deviceOnline: false, storage: "local" },
     features: {},
     profile: null,
     dashboardLoaded: false,
     polling: false,
-    pendingAeratorValue: null,
-    chartModels: new Map()
+    pendingAeratorValue: null
   };
 
   function validThresholdObject(value) {
@@ -212,31 +137,6 @@
     $("button", element).addEventListener("click", close);
     region.appendChild(element);
     setTimeout(close, timeout);
-  }
-
-  async function hashPassword(password) {
-    if (window.crypto && crypto.subtle && window.TextEncoder) {
-      const data = new TextEncoder().encode(`aqua-demo:${password}`);
-      const digest = await crypto.subtle.digest("SHA-256", data);
-      return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
-    }
-    let hash = 2166136261;
-    const salted = `aqua-demo:${password}`;
-    for (let i = 0; i < salted.length; i += 1) {
-      hash ^= salted.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
-    }
-    return `fallback-${(hash >>> 0).toString(16)}`;
-  }
-
-  function getStoredSession() {
-    return storage.get(STORAGE.session, null, true) || storage.get(STORAGE.session, null, false);
-  }
-
-  function saveSession(user, remember) {
-    storage.remove(STORAGE.session, true);
-    storage.remove(STORAGE.session, false);
-    storage.set(STORAGE.session, user, !remember);
   }
 
   function renderUser() {
@@ -530,6 +430,9 @@
       storage: String(backendStatus.storage || backendStatus.persistence || state.status.storage).includes("firestore") ? "firestore" : "local"
     };
     state.features = { ...state.features, ...(data.features || {}) };
+    if (data.telegram && typeof data.telegram === "object") {
+      state.telegramConnection = { ...state.telegramConnection, ...data.telegram };
+    }
     state.profile = data.profile || state.profile;
     state.dashboardLoaded = true;
     if (state.profile?.name && state.user) {
@@ -601,7 +504,6 @@
     try {
       const result = await api.action("relay", { command: desired ? "ON" : "OFF", mode: "MANUAL" });
       state.mode = "MANUAL";
-      state.aeratorChangedAt = Date.now();
       toast("MQTT đã nhận lệnh", result.message || `Đang chờ ESP32 phản hồi trạng thái ${desired ? "BẬT" : "TẮT"}.`);
       setTimeout(() => refreshDashboard(true), 500);
     } catch (error) {
@@ -688,11 +590,52 @@
     renderNotifications();
     $("#telegram-toggle").checked = state.telegram;
     $("#telegram-status-text").textContent = state.telegram ? (state.features.telegram ? "Đang bật" : "Bật · thiếu cấu hình Bot") : "Đang tắt";
+    renderTelegramConnection();
   }
 
-  function persistAlerts() {
-    storage.set(STORAGE.alerts, state.alerts);
-    renderAlerts();
+  function renderTelegramConnection() {
+    const connection = state.telegramConnection;
+    const configured = Boolean(state.features.telegram && connection.configured !== false);
+    const account = connection.account || {};
+    const status = $("#telegram-account");
+    const connect = $("#telegram-connect");
+    const disconnect = $("#telegram-disconnect");
+    status.classList.toggle("connected", Boolean(connection.connected));
+    status.classList.toggle("pending", Boolean(connection.pending));
+    $("span", status).textContent = connection.connected
+      ? `${account.displayName || "Telegram"}${account.idHint ? ` (${account.idHint})` : ""}`
+      : connection.pending ? "Đang chờ bấm Start trong bot" : configured ? "Chưa liên kết tài khoản" : "Chưa cấu hình Bot token";
+    connect.disabled = !configured || state.telegramBusy;
+    disconnect.disabled = !connection.connected || state.telegramBusy;
+    connect.classList.toggle("hidden", Boolean(connection.connected));
+    disconnect.classList.toggle("hidden", !connection.connected);
+  }
+
+  async function connectTelegram() {
+    if (state.telegramBusy) return;
+    state.telegramBusy = true;
+    renderTelegramConnection();
+    try {
+      const result = await api.action("telegramConnect");
+      const link = result.telegram?.deepLink;
+      if (!/^https:\/\/t\.me\//.test(link || "")) throw new Error("Backend không trả về liên kết Telegram hợp lệ.");
+      state.telegramConnection = { ...state.telegramConnection, ...result.telegram, pending: true };
+      window.open(link, "_blank", "noopener,noreferrer");
+      toast("Đã mở Telegram", "Hãy bấm Start trong bot để xác nhận liên kết.", "info", 6000);
+    } catch (error) { toast("Không thể liên kết Telegram", error.message, "warning"); }
+    finally { state.telegramBusy = false; renderTelegramConnection(); }
+  }
+
+  async function disconnectTelegram() {
+    if (state.telegramBusy || !confirm("Hủy liên kết Telegram của tài khoản này?")) return;
+    state.telegramBusy = true;
+    renderTelegramConnection();
+    try {
+      const result = await api.action("telegramDisconnect");
+      state.telegramConnection = result.telegram || { configured: true, connected: false, pending: false };
+      toast("Đã hủy liên kết", "Telegram sẽ không còn nhận cảnh báo của tài khoản này.", "info");
+    } catch (error) { toast("Không hủy được liên kết", error.message, "warning"); }
+    finally { state.telegramBusy = false; renderTelegramConnection(); }
   }
 
   async function simulateAlert() {
@@ -714,9 +657,11 @@
 
   function initAlerts() {
     $("#simulate-alert").addEventListener("click", simulateAlert);
+    $("#telegram-connect").addEventListener("click", connectTelegram);
+    $("#telegram-disconnect").addEventListener("click", disconnectTelegram);
     $("#clear-demo-alerts").addEventListener("click", () => {
       state.alerts = [];
-      persistAlerts();
+      renderAlerts();
       toast("Đã ẩn danh sách", "Dữ liệu đã lưu trên Firestore/Node-RED không bị xóa.", "info");
     });
     $("#telegram-toggle").addEventListener("change", async event => {
@@ -741,7 +686,6 @@
         return;
       }
       state.thresholds = next;
-      storage.set(STORAGE.thresholds, next);
       renderThresholds();
       try {
         await api.action("settings", { settings: { ...next, telegramEnabled: state.telegram, mode: state.mode } });
@@ -765,7 +709,7 @@
     });
     $("#mark-all-read").addEventListener("click", () => {
       state.alerts.forEach(alert => { alert.unread = false; });
-      persistAlerts();
+      renderAlerts();
       toast("Đã đánh dấu đã đọc", "Các cảnh báo trên giao diện không còn ở trạng thái chưa đọc.", "info");
     });
   }
@@ -872,15 +816,6 @@
     return sampled;
   }
 
-  function scaleFor(records, key, fallbackMin, fallbackMax) {
-    const values = records.map(record => Number(record[key])).filter(Number.isFinite);
-    if (!values.length) return { min: fallbackMin, max: fallbackMax };
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const padding = Math.max((max - min) * .18, key === "ph" ? .08 : .35);
-    return { min: Math.min(fallbackMin, min - padding), max: Math.max(fallbackMax, max + padding) };
-  }
-
   function renderWithChartJs(canvas, records, metric, tooltip) {
     if (!window.Chart) return false;
     const showTemp = metric === "both" || metric === "temperature";
@@ -964,117 +899,8 @@
   }
 
   function renderChart(canvas, sourceRecords, metric = "both", tooltip) {
-    if (!canvas || !canvas.isConnected || canvas.clientWidth < 20 || canvas.clientHeight < 20) return;
-    const records = pickChartData(sourceRecords);
-    if (renderWithChartJs(canvas, records, metric, tooltip)) return;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-    const ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, width, height);
-
-    const showTemp = metric === "both" || metric === "temperature";
-    const showPh = metric === "both" || metric === "ph";
-    const padding = { left: 43, right: metric === "both" ? 43 : 21, top: 14, bottom: 31 };
-    const plotWidth = Math.max(10, width - padding.left - padding.right);
-    const plotHeight = Math.max(10, height - padding.top - padding.bottom);
-    const tempScale = scaleFor(records, "temperature", 24, 30);
-    const phScale = scaleFor(records, "ph", 6.5, 8);
-    const primaryScale = metric === "ph" ? phScale : tempScale;
-
-    ctx.font = '8px "Segoe UI", sans-serif';
-    ctx.textBaseline = "middle";
-    for (let tick = 0; tick <= 4; tick += 1) {
-      const y = padding.top + plotHeight * tick / 4;
-      ctx.beginPath();
-      ctx.strokeStyle = "#edf2f2";
-      ctx.lineWidth = 1;
-      ctx.moveTo(padding.left, y);
-      ctx.lineTo(padding.left + plotWidth, y);
-      ctx.stroke();
-      const fraction = 1 - tick / 4;
-      ctx.fillStyle = "#91a2a8";
-      ctx.textAlign = "right";
-      const leftValue = primaryScale.min + (primaryScale.max - primaryScale.min) * fraction;
-      ctx.fillText(metric === "ph" ? leftValue.toFixed(1) : leftValue.toFixed(1), padding.left - 7, y);
-      if (metric === "both") {
-        const rightValue = phScale.min + (phScale.max - phScale.min) * fraction;
-        ctx.textAlign = "left";
-        ctx.fillText(rightValue.toFixed(1), padding.left + plotWidth + 7, y);
-      }
-    }
-
-    if (records.length) {
-      const span = records[records.length - 1].timestamp - records[0].timestamp;
-      const labelCount = width < 520 ? 3 : 5;
-      for (let index = 0; index < labelCount; index += 1) {
-        const recordIndex = Math.round((records.length - 1) * index / (labelCount - 1));
-        const x = padding.left + plotWidth * recordIndex / Math.max(1, records.length - 1);
-        const stamp = records[recordIndex].timestamp;
-        const label = span > 48 * HOUR ? shortDateFormatter.format(new Date(stamp)) : formatTime(stamp);
-        ctx.fillStyle = "#98a8ac";
-        ctx.textAlign = index === 0 ? "left" : index === labelCount - 1 ? "right" : "center";
-        ctx.textBaseline = "top";
-        ctx.fillText(label, x, padding.top + plotHeight + 11);
-      }
-    }
-
-    const drawSeries = (key, color, scale, fillColor) => {
-      if (!records.length) return;
-      const points = records.map((record, index) => ({ record, index })).filter(item => finite(item.record[key]) !== null).map(item => ({
-        x: padding.left + plotWidth * item.index / Math.max(1, records.length - 1),
-        y: padding.top + plotHeight * (1 - (item.record[key] - scale.min) / Math.max(.001, scale.max - scale.min))
-      }));
-      if (!points.length) return;
-      const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + plotHeight);
-      gradient.addColorStop(0, fillColor);
-      gradient.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, padding.top + plotHeight);
-      points.forEach(point => ctx.lineTo(point.x, point.y));
-      ctx.lineTo(points[points.length - 1].x, padding.top + plotHeight);
-      ctx.closePath();
-      ctx.fillStyle = gradient;
-      ctx.fill();
-      ctx.beginPath();
-      points.forEach((point, index) => index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.lineJoin = "round";
-      ctx.stroke();
-    };
-    if (showTemp) drawSeries("temperature", "#3e8fd3", tempScale, "rgba(62,143,211,.13)");
-    if (showPh) drawSeries("ph", "#12a292", phScale, "rgba(18,162,146,.10)");
-
-    canvas._chartModel = { records, metric, padding, plotWidth, plotHeight, tooltip };
-    if (!canvas._chartEventsBound) {
-      canvas.addEventListener("mousemove", chartMouseMove);
-      canvas.addEventListener("mouseleave", () => canvas._chartModel?.tooltip?.classList.remove("visible"));
-      canvas._chartEventsBound = true;
-    }
-  }
-
-  function chartMouseMove(event) {
-    const canvas = event.currentTarget;
-    const model = canvas._chartModel;
-    if (!model || !model.records.length || !model.tooltip) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const local = clamp(x - model.padding.left, 0, model.plotWidth);
-    const index = Math.round(local / model.plotWidth * Math.max(1, model.records.length - 1));
-    const record = model.records[index];
-    const lines = [];
-    if ((model.metric === "both" || model.metric === "temperature") && finite(record.temperature) !== null) lines.push(`<span>Nhiệt độ <b>${record.temperature.toFixed(1)}°C</b></span>`);
-    if ((model.metric === "both" || model.metric === "ph") && finite(record.ph) !== null) lines.push(`<span>Độ pH <b>${record.ph.toFixed(2)}</b></span>`);
-    model.tooltip.innerHTML = `<strong>${formatTableDate(record.timestamp)}</strong>${lines.join("")}<small>${state.status.storage === "firestore" ? "Firebase Firestore" : "Node-RED"}</small>`;
-    const wrap = model.tooltip.parentElement;
-    const desiredLeft = canvas.offsetLeft + model.padding.left + model.plotWidth * index / Math.max(1, model.records.length - 1) - 60;
-    model.tooltip.style.left = `${clamp(desiredLeft, 5, wrap.clientWidth - 135)}px`;
-    model.tooltip.style.top = "18px";
-    model.tooltip.classList.add("visible");
+    if (!canvas || !canvas.isConnected || !window.Chart) return;
+    renderWithChartJs(canvas, pickChartData(sourceRecords), metric, tooltip);
   }
 
   function renderActivePage() {
@@ -1126,6 +952,7 @@
 
   function resetChat() {
     $("#chat-messages").innerHTML = "";
+    state.chatHistory = [];
     addChatMessage("assistant", `Xin chào ${firstName(state.user?.name)}! Tôi có thể dùng dữ liệu hiện tại, lịch sử, cảnh báo và trạng thái relay để trả lời. ${state.features.openai ? "OpenAI API đã sẵn sàng." : "Chưa có OPENAI_API_KEY nên hiện dùng câu trả lời cục bộ."}`);
   }
 
@@ -1165,12 +992,16 @@
     const clean = String(question || "").trim();
     if (!clean) return;
     addChatMessage("user", clean);
+    const history = state.chatHistory.slice(-10);
+    state.chatHistory.push({ role: "user", content: clean.slice(0, 500) });
     $("#typing-indicator").classList.remove("hidden");
     $("#chat-messages").scrollTop = $("#chat-messages").scrollHeight;
     try {
-      const result = await api.action("chat", { question: clean });
+      const result = await api.action("chat", { question: clean, history });
       $("#typing-indicator").classList.add("hidden");
       addChatMessage("assistant", result.answer || result.message || answerQuestion(clean));
+      state.chatHistory.push({ role: "assistant", content: String(result.answer || result.message || "").slice(0, 500) });
+      state.chatHistory = state.chatHistory.slice(-10);
     } catch (error) {
       $("#typing-indicator").classList.add("hidden");
       addChatMessage("assistant", `${answerQuestion(clean)}\n\n(Lỗi backend: ${error.message})`);
