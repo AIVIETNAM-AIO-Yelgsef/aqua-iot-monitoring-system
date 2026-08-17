@@ -64,7 +64,16 @@ Telegram không cho website tự đọc ID chỉ bằng cách mở ứng dụng.
 
 ### OpenAI
 
-Điền `OPENAI_API_KEY`; có thể đổi `OPENAI_MODEL`. Backend dùng Responses API và chỉ gửi câu hỏi cùng phần dữ liệu hệ thống cần thiết. Nếu thiếu key, trang chat vẫn trả lời cục bộ và ghi rõ chế độ fallback.
+Điền `OPENAI_API_KEY`; có thể đổi `OPENAI_MODEL`. Backend dùng Responses API theo mô hình chỉ đọc:
+
+- Mỗi câu hỏi nhận tối đa 10 tin nhắn trước đó để hội thoại nhiều lượt nhưng không làm phình chi phí.
+- Ngữ cảnh gồm dữ liệu mới nhất, tối đa 120 bản ghi trong 24 giờ, 10 cảnh báo gần nhất, ngưỡng và trạng thái relay/kết nối.
+- pH/NTU chưa hiệu chuẩn không được suy diễn từ RAW hoặc điện áp.
+- Chatbot không có quyền điều khiển relay, đổi ngưỡng hoặc gửi Telegram.
+- Request đặt `store: false`; khóa API chỉ ở backend. Mã người dùng gửi cho cơ chế an toàn được băm một chiều.
+- Mặc định tối đa 12 câu/phút cho mỗi tài khoản; chỉnh bằng `CHAT_RATE_LIMIT_MAX` và `CHAT_RATE_LIMIT_WINDOW_MS`.
+
+Nếu thiếu key, key sai, hết quota, timeout hoặc OpenAI tạm lỗi, trang chat tự chuyển sang bộ trả lời cục bộ và hiển thị đúng lý do. Sau khi sửa `config.local.ps1`, phải dừng rồi mở lại hệ thống để Node-RED nhận biến môi trường mới.
 
 ## MQTT
 
@@ -92,7 +101,7 @@ Ngưỡng độ đục mặc định trong firmware là điện áp module `< 2,
 
 - `GET /api/config` — cấu hình công khai và trạng thái tính năng.
 - `GET /api/dashboard?hours=24` — telemetry, lịch sử, cảnh báo, cấu hình, hồ sơ.
-- `POST /api/action` — `relay`, `mode`, `settings`, `profile`, `chat`, `testAlert`.
+- `POST /api/action` — `relay`, `mode`, `settings`, `profile`, `chat`, `telegramConnect`, `telegramStatus`, `telegramDisconnect`, `testAlert`.
 - `GET /api/health` — trạng thái backend/persistence.
 
 ## Dừng hệ thống
