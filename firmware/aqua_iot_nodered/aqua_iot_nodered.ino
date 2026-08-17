@@ -11,9 +11,9 @@
  *   Relay IN                -> GPIO26; relay jumper H = active HIGH
  *
  * MQTT topics:
- *   <AQUA_MQTT_TOPIC_ROOT>/data      ESP32 -> Node-RED telemetry JSON
- *   <AQUA_MQTT_TOPIC_ROOT>/status    ESP32 -> Node-RED online/offline retained LWT
- *   <AQUA_MQTT_TOPIC_ROOT>/command   Node-RED -> ESP32 relay/mode JSON command
+ *   <prefix>/<deviceId>/data      ESP32 -> Node-RED telemetry JSON
+ *   <prefix>/<deviceId>/status    ESP32 -> Node-RED online/offline retained LWT
+ *   <prefix>/<deviceId>/command   Node-RED -> ESP32 relay/mode JSON command
  */
 
 #include <WiFi.h>
@@ -27,6 +27,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <math.h>
+#include <esp_mac.h>
 
 // ==================== USER CONFIGURATION ====================
 
@@ -38,7 +39,7 @@
 #else
 #define AQUA_MQTT_HOST "broker.hivemq.com"
 #define AQUA_MQTT_PORT 1883
-#define AQUA_MQTT_TOPIC_ROOT "aqua-iot/nhom18-24127175-24127257/esp32-aqua-01"
+#define AQUA_MQTT_TOPIC_PREFIX "aqua-iot/nhom18-24127175-24127257"
 #define AQUA_MQTT_USERNAME ""
 #define AQUA_MQTT_PASSWORD ""
 #warning "Using default public MQTT settings. Create aqua_secrets.h only to override them."
@@ -49,14 +50,15 @@ const uint16_t MQTT_PORT = AQUA_MQTT_PORT;
 const char *MQTT_USERNAME = AQUA_MQTT_USERNAME;
 const char *MQTT_PASSWORD = AQUA_MQTT_PASSWORD;
 
-const char *DEVICE_ID = "esp32-aqua-01";
-const char *FIRMWARE_VERSION = "2.1.0";
+const char *FIRMWARE_VERSION = "2.2.0";
 
 // ==================== MQTT CONTRACT ====================
 
-const char *TOPIC_DATA = AQUA_MQTT_TOPIC_ROOT "/data";
-const char *TOPIC_STATUS = AQUA_MQTT_TOPIC_ROOT "/status";
-const char *TOPIC_COMMAND = AQUA_MQTT_TOPIC_ROOT "/command";
+String deviceId;
+String topicData;
+String topicStatus;
+String topicCommand;
+void buildDeviceIdentity();
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
@@ -351,7 +353,8 @@ void updateOLED() {
     display.setCursor(0, 39);
     display.println("Mo: 192.168.4.1");
     display.setCursor(0, 52);
-    display.println("Giu BOOT 5s: reset");
+    display.print("ID:");
+    display.println(deviceId);
     display.display();
     return;
   }
@@ -496,7 +499,7 @@ void publishTelemetry() {
   String payload;
   payload.reserve(900);
   payload += "{";
-  payload += "\"deviceId\":\"" + String(DEVICE_ID) + "\",";
+  payload += "\"deviceId\":\"" + deviceId + "\",";
   payload += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\",";
 
   payload += "\"temperature\":";
@@ -541,7 +544,7 @@ void publishTelemetry() {
   }
   payload += "}";
 
-  const bool published = mqttClient.publish(TOPIC_DATA, payload.c_str(), false);
+  const bool published = mqttClient.publish(topicData.c_str(), payload.c_str(), false);
   Serial.print(published ? "MQTT TX: " : "MQTT TX LOI: ");
   Serial.println(payload);
 }
@@ -579,7 +582,7 @@ void applyPlainOrJsonCommand(const String &incoming) {
   command.toUpperCase();
   requestedMode.toUpperCase();
 
-  if (targetDevice.length() > 0 && targetDevice != DEVICE_ID && targetDevice != "*") {
+  if (targetDevice.length() > 0 && targetDevice != deviceId && targetDevice != "*") {
     Serial.print("Bo qua lenh cho thiet bi khac: ");
     Serial.println(targetDevice);
     return;
@@ -619,7 +622,7 @@ void applyPlainOrJsonCommand(const String &incoming) {
 }
 
 void mqttCallback(char *topic, byte *payload, unsigned int length) {
-  if (strcmp(topic, TOPIC_COMMAND) != 0) return;
+  if (topicCommand != String(topic)) return;
   if (length == 0 || length > 768) {
     Serial.println("Bo qua lenh MQTT rong/qua dai.");
     return;
@@ -704,6 +707,9 @@ String buildProvisioningPage(const String &notice = "", bool success = false) {
     "</style></head><body><main class='card'><div class='brand'><span class='drop'>&#128167;</span>Aqua IoT</div>"
     "<h1>Ket noi Wi-Fi cho ESP32</h1><p>Chon Wi-Fi 2.4 GHz cua ban va nhap mat khau. Thong tin chi duoc luu trong ESP32.</p>"
   );
+  page += F("<div class='note'><b>Ma dinh danh thiet bi:</b><br><code>");
+  page += htmlEscape(deviceId);
+  page += F("</code><br>Hay dung ma nay khi tao tai khoan tren website.</div>");
   if (notice.length() > 0) {
     page += success ? F("<div class='note ok'>") : F("<div class='note error'>");
     page += htmlEscape(notice);
@@ -796,6 +802,8 @@ void startProvisioning() {
   Serial.println(SETUP_AP_PASSWORD);
   Serial.print("Mo trang: ");
   Serial.println(SETUP_PORTAL_URL);
+  Serial.print("Ma dinh danh de dang ky: ");
+  Serial.println(deviceId);
   Serial.println("Hoac quet ma QR trong firmware/AquaIoT-Setup-QR.png");
   updateOLED();
 }
@@ -882,8 +890,7 @@ void connectMQTT() {
   if (lastMqttAttemptAt != 0 && !elapsed(now, lastMqttAttemptAt, MQTT_RETRY_INTERVAL_MS)) return;
   lastMqttAttemptAt = now;
 
-  String clientId = String(DEVICE_ID) + "-" +
-                    String(static_cast<uint32_t>(ESP.getEfuseMac() & 0xFFFFFFFF), HEX);
+  String clientId = deviceId;
   Serial.print("Dang ket noi MQTT ");
   Serial.print(MQTT_HOST);
   Serial.print(":");
@@ -893,16 +900,16 @@ void connectMQTT() {
   if (strlen(MQTT_USERNAME) > 0) {
     connected = mqttClient.connect(
       clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD,
-      TOPIC_STATUS, 1, true, "offline"
+      topicStatus.c_str(), 1, true, "offline"
     );
   } else {
-    connected = mqttClient.connect(clientId.c_str(), TOPIC_STATUS, 1, true, "offline");
+    connected = mqttClient.connect(clientId.c_str(), topicStatus.c_str(), 1, true, "offline");
   }
 
   if (connected) {
     Serial.println("MQTT: DA KET NOI");
-    mqttClient.publish(TOPIC_STATUS, "online", true);
-    mqttClient.subscribe(TOPIC_COMMAND, 1);
+    mqttClient.publish(topicStatus.c_str(), "online", true);
+    mqttClient.subscribe(topicCommand.c_str(), 1);
     requestTelemetryNow();
   } else {
     Serial.print("MQTT loi, state = ");
@@ -924,12 +931,28 @@ void handleSerialCommand() {
 
 // ==================== SETUP AND LOOP ====================
 
+void buildDeviceIdentity() {
+  uint8_t mac[6] = {0};
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  char suffix[13];
+  snprintf(suffix, sizeof(suffix), "%02x%02x%02x%02x%02x%02x",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  deviceId = "aqua-" + String(suffix);
+  const String root = String(AQUA_MQTT_TOPIC_PREFIX) + "/" + deviceId;
+  topicData = root + "/data";
+  topicStatus = root + "/status";
+  topicCommand = root + "/command";
+}
+
 void setup() {
   Serial.begin(115200);
   delay(300);
+  buildDeviceIdentity();
   Serial.println();
   Serial.print("Aqua IoT firmware ");
   Serial.println(FIRMWARE_VERSION);
+  Serial.print("MA THIET BI: ");
+  Serial.println(deviceId);
 
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_GREEN_PIN, OUTPUT);

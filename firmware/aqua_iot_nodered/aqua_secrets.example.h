@@ -4,6 +4,6 @@
 // aqua_secrets.h is ignored by Git and must never be committed.
 #define AQUA_MQTT_HOST "broker.hivemq.com"
 #define AQUA_MQTT_PORT 1883
-#define AQUA_MQTT_TOPIC_ROOT "aqua-iot/nhom18-24127175-24127257/esp32-aqua-01"
+#define AQUA_MQTT_TOPIC_PREFIX "aqua-iot/nhom18-24127175-24127257"
 #define AQUA_MQTT_USERNAME ""
 #define AQUA_MQTT_PASSWORD ""

@@ -62,12 +62,12 @@ Chỉ cần tạo file này khi muốn đổi cấu hình MQTT mặc định:
 ```cpp
 #define AQUA_MQTT_HOST "broker.hivemq.com"
 #define AQUA_MQTT_PORT 1883
-#define AQUA_MQTT_TOPIC_ROOT "aqua-iot/nhom18-24127175-24127257/esp32-aqua-01"
+#define AQUA_MQTT_TOPIC_PREFIX "aqua-iot/nhom18-24127175-24127257"
 ```
 
 `aqua_secrets.h` đã được `.gitignore` loại trừ. Wi-Fi nhà không còn được ghi trong source; người dùng nhập Wi-Fi qua trang cài đặt của ESP32 và thông tin được lưu trong NVS của chính ESP32.
 
-ESP32 và Node-RED cùng kết nối tới `broker.hivemq.com:1883`, vì vậy không cần nhập IPv4 máy tính và không cần chạy Mosquitto cục bộ. Giữ `AQUA_MQTT_TOPIC_ROOT` giống hệt cấu hình Node-RED. ESP32 tự tạo Client ID riêng từ MAC; không dùng Client ID `nodered-hcmus-aqua-18` của Node-RED.
+ESP32 và Node-RED cùng kết nối tới `broker.hivemq.com:1883`, vì vậy không cần nhập IPv4 máy tính và không cần chạy Mosquitto cục bộ. ESP32 tự sinh Device ID và MQTT Client ID ổn định từ MAC Wi‑Fi, ví dụ `aqua-20500de64424`; không dùng Client ID `nodered-hcmus-aqua-18` của Node-RED.
 
 ## 4. Cài đặt Wi-Fi lần đầu bằng QR
 
@@ -79,7 +79,8 @@ ESP32 và Node-RED cùng kết nối tới `broker.hivemq.com:1883`, vì vậy k
 6. Điện thoại kết nối tới Wi-Fi `AquaIoT-Setup`, mật khẩu `aqua1234`. Trang cài đặt thường tự mở.
 7. Nếu trang không tự mở, truy cập `http://192.168.4.1`.
 8. Chọn Wi-Fi nhà băng tần **2.4 GHz**, nhập mật khẩu rồi bấm **Lưu và kết nối**. ESP32 tự khởi động lại.
-9. Chạy `nodered/BAT_DAU_WEB.cmd`, sau đó mở `http://127.0.0.1:1880/`.
+9. Ghi lại **Mã định danh thiết bị** trên trang cài đặt/OLED/Serial. Mã này bắt buộc khi tạo tài khoản web.
+10. Chạy `nodered/BAT_DAU_WEB.cmd`, sau đó mở `http://127.0.0.1:1880/`.
 
 Serial phải lần lượt thấy `WiFi OK`, `MQTT: DA KET NOI` và các dòng `MQTT TX`. Nếu cảm biến analog báo quá áp/bão hòa, rút USB ngay rồi kiểm tra lại cầu chia `20 kΩ/4.7 kΩ`.
 
@@ -104,7 +105,7 @@ Có thể thử relay từ Serial Monitor:
 
 | Topic | Nội dung |
 |---|---|
-Topic root: `aqua-iot/nhom18-24127175-24127257/esp32-aqua-01`
+Topic root: `aqua-iot/nhom18-24127175-24127257/<deviceId>`
 
 | Topic con | Nội dung |
 |---|---|
