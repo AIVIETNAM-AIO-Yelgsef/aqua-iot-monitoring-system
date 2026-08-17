@@ -29,7 +29,7 @@ website/    Giao diện quản lý responsive
 4. Mở `http://localhost:1880/`.
 5. Chỉnh Wi-Fi và địa chỉ MQTT trong firmware trước khi nạp cho ESP32.
 
-Hướng dẫn chi tiết nằm tại [`nodered/README.md`](nodered/README.md) và [`website/README.md`](website/README.md).
+Hướng dẫn chi tiết nằm tại [`nodered/README.md`](nodered/README.md), [`website/README.md`](website/README.md) và [`firmware/README.md`](firmware/README.md).
 
 ## An toàn cấu hình
 
