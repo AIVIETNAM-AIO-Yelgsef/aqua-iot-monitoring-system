@@ -17,6 +17,9 @@
  */
 
 #include <WiFi.h>
+#include <WebServer.h>
+#include <DNSServer.h>
+#include <Preferences.h>
 #include <PubSubClient.h>
 #include <Wire.h>
 #include <OneWire.h>
@@ -27,30 +30,27 @@
 
 // ==================== USER CONFIGURATION ====================
 
-// Keep real network credentials in aqua_secrets.h (ignored by Git).
-// Copy aqua_secrets.example.h to aqua_secrets.h before uploading.
+// MQTT settings can be overridden in aqua_secrets.h (ignored by Git).
+// Wi-Fi credentials are entered through the first-time captive portal and
+// stored in ESP32 NVS, never compiled into this sketch.
 #if __has_include("aqua_secrets.h")
 #include "aqua_secrets.h"
 #else
-#define AQUA_WIFI_SSID "AQUA_IOT"
-#define AQUA_WIFI_PASSWORD "MAT_KHAU_WIFI_CUA_BAN"
 #define AQUA_MQTT_HOST "broker.hivemq.com"
 #define AQUA_MQTT_PORT 1883
 #define AQUA_MQTT_TOPIC_ROOT "aqua-iot/nhom18-24127175-24127257/esp32-aqua-01"
 #define AQUA_MQTT_USERNAME ""
 #define AQUA_MQTT_PASSWORD ""
-#warning "Using example ESP32 credentials. Create aqua_secrets.h before uploading."
+#warning "Using default public MQTT settings. Create aqua_secrets.h only to override them."
 #endif
 
-const char *WIFI_SSID = AQUA_WIFI_SSID;
-const char *WIFI_PASSWORD = AQUA_WIFI_PASSWORD;
 const char *MQTT_HOST = AQUA_MQTT_HOST;
 const uint16_t MQTT_PORT = AQUA_MQTT_PORT;
 const char *MQTT_USERNAME = AQUA_MQTT_USERNAME;
 const char *MQTT_PASSWORD = AQUA_MQTT_PASSWORD;
 
 const char *DEVICE_ID = "esp32-aqua-01";
-const char *FIRMWARE_VERSION = "2.0.0";
+const char *FIRMWARE_VERSION = "2.1.0";
 
 // ==================== MQTT CONTRACT ====================
 
@@ -60,6 +60,9 @@ const char *TOPIC_COMMAND = AQUA_MQTT_TOPIC_ROOT "/command";
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
+WebServer provisioningServer(80);
+DNSServer provisioningDns;
+Preferences wifiPreferences;
 
 // ==================== ESP32 PIN MAP ====================
 
@@ -71,6 +74,22 @@ constexpr uint8_t LED_RED_PIN = 19;
 constexpr uint8_t RELAY_PIN = 26;
 constexpr uint8_t OLED_SDA = 22;
 constexpr uint8_t OLED_SCL = 23;
+constexpr uint8_t BOOT_BUTTON_PIN = 0;
+
+// ==================== FIRST-TIME WI-FI SETUP ====================
+
+const char *SETUP_AP_SSID = "AquaIoT-Setup";
+const char *SETUP_AP_PASSWORD = "aqua1234";
+const char *SETUP_PORTAL_URL = "http://192.168.4.1";
+const char *WIFI_PREFERENCES_NAMESPACE = "aqua-wifi";
+
+String configuredWifiSsid;
+String configuredWifiPassword;
+bool provisioningActive = false;
+bool provisioningRestartPending = false;
+unsigned long provisioningRestartAt = 0;
+unsigned long bootButtonPressedAt = 0;
+uint8_t wifiFailureCount = 0;
 
 // Relay board in this project uses jumper H: HIGH = ON, LOW = OFF.
 constexpr bool RELAY_ACTIVE_HIGH = true;
@@ -169,6 +188,9 @@ constexpr unsigned long WIFI_RETRY_INTERVAL_MS = 10000;
 constexpr unsigned long WIFI_CONNECT_TIMEOUT_MS = 30000;
 constexpr unsigned long MQTT_RETRY_INTERVAL_MS = 5000;
 constexpr unsigned long ALERT_BLINK_INTERVAL_MS = 350;
+constexpr unsigned long BOOT_BUTTON_RESET_MS = 5000;
+constexpr unsigned long PROVISIONING_RESTART_DELAY_MS = 1500;
+constexpr uint8_t WIFI_FAILURES_BEFORE_PORTAL = 2;
 
 unsigned long lastMeasurementAt = 0;
 unsigned long lastWiFiAttemptAt = 0;
@@ -315,6 +337,24 @@ void updateOLED() {
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
+
+  if (provisioningActive) {
+    display.setCursor(20, 0);
+    display.println("CAI DAT WIFI");
+    display.drawLine(0, 10, SCREEN_WIDTH - 1, 10, SSD1306_WHITE);
+    display.setCursor(0, 15);
+    display.print("WiFi: ");
+    display.println(SETUP_AP_SSID);
+    display.setCursor(0, 27);
+    display.print("Pass: ");
+    display.println(SETUP_AP_PASSWORD);
+    display.setCursor(0, 39);
+    display.println("Mo: 192.168.4.1");
+    display.setCursor(0, 52);
+    display.println("Giu BOOT 5s: reset");
+    display.display();
+    return;
+  }
 
   if (turbidityAlert) {
     display.drawRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SSD1306_WHITE);
@@ -598,9 +638,209 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
 
 // ==================== NETWORK CONNECTION ====================
 
+String htmlEscape(const String &value) {
+  String escaped;
+  escaped.reserve(value.length() + 8);
+  for (size_t index = 0; index < value.length(); index++) {
+    const char character = value[index];
+    if (character == '&') escaped += F("&amp;");
+    else if (character == '<') escaped += F("&lt;");
+    else if (character == '>') escaped += F("&gt;");
+    else if (character == '\"') escaped += F("&quot;");
+    else if (character == '\'') escaped += F("&#39;");
+    else escaped += character;
+  }
+  return escaped;
+}
+
+void loadStoredWiFiCredentials() {
+  wifiPreferences.begin(WIFI_PREFERENCES_NAMESPACE, true);
+  configuredWifiSsid = wifiPreferences.getString("ssid", "");
+  configuredWifiPassword = wifiPreferences.getString("password", "");
+  wifiPreferences.end();
+}
+
+void clearStoredWiFiCredentials() {
+  wifiPreferences.begin(WIFI_PREFERENCES_NAMESPACE, false);
+  wifiPreferences.clear();
+  wifiPreferences.end();
+  configuredWifiSsid = "";
+  configuredWifiPassword = "";
+}
+
+String buildProvisioningPage(const String &notice = "", bool success = false) {
+  String options;
+  const int networkCount = WiFi.scanNetworks(false, true);
+  for (int index = 0; index < networkCount; index++) {
+    const String candidate = WiFi.SSID(index);
+    if (candidate.length() == 0 || options.indexOf("value=\"" + htmlEscape(candidate) + "\"") >= 0) continue;
+    options += F("<option value=\"");
+    options += htmlEscape(candidate);
+    options += F("\">");
+    options += htmlEscape(candidate);
+    options += F(" (");
+    options += String(WiFi.RSSI(index));
+    options += F(" dBm)</option>");
+  }
+  WiFi.scanDelete();
+
+  String page;
+  page.reserve(7000 + options.length());
+  page += F(
+    "<!doctype html><html lang='vi'><head><meta charset='utf-8'>"
+    "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+    "<title>Aqua IoT - Cai dat Wi-Fi</title><style>"
+    "*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;"
+    "font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#e9f7f5;color:#12344a;padding:20px}"
+    ".card{width:min(100%,460px);background:#fff;border-radius:22px;padding:28px;box-shadow:0 18px 55px #0b6f6a26}"
+    ".brand{display:flex;align-items:center;gap:12px;color:#087f78;font-weight:800;font-size:21px}"
+    ".drop{width:42px;height:42px;border-radius:14px;background:#0b8d84;color:#fff;display:grid;place-items:center}"
+    "h1{font-size:27px;margin:22px 0 8px}p{color:#607985;line-height:1.5;margin:0 0 20px}"
+    "label{display:block;font-weight:700;margin:16px 0 7px}input{width:100%;border:1px solid #c7dada;"
+    "border-radius:12px;padding:14px;font-size:16px;outline:none}input:focus{border-color:#0b8d84;box-shadow:0 0 0 3px #0b8d8420}"
+    "button{width:100%;border:0;border-radius:13px;margin-top:22px;padding:15px;background:#0b8d84;color:#fff;"
+    "font-size:17px;font-weight:800}.note{background:#f2f8f7;border-radius:12px;padding:12px;margin-top:18px;font-size:13px}"
+    ".ok{background:#e7f8ee;color:#176b3b}.error{background:#fff0f0;color:#a62d2d}"
+    "</style></head><body><main class='card'><div class='brand'><span class='drop'>&#128167;</span>Aqua IoT</div>"
+    "<h1>Ket noi Wi-Fi cho ESP32</h1><p>Chon Wi-Fi 2.4 GHz cua ban va nhap mat khau. Thong tin chi duoc luu trong ESP32.</p>"
+  );
+  if (notice.length() > 0) {
+    page += success ? F("<div class='note ok'>") : F("<div class='note error'>");
+    page += htmlEscape(notice);
+    page += F("</div>");
+  }
+  if (!success) {
+    page += F("<form method='post' action='/save'><label for='ssid'>Ten Wi-Fi (SSID)</label>"
+              "<input id='ssid' name='ssid' list='networks' maxlength='32' required autocomplete='off'>"
+              "<datalist id='networks'>");
+    page += options;
+    page += F("</datalist><label for='password'>Mat khau Wi-Fi</label>"
+              "<input id='password' name='password' type='password' maxlength='63' autocomplete='new-password'>"
+              "<button type='submit'>Luu va ket noi</button></form>"
+              "<div class='note'>Neu trang nay khong tu mo, truy cap <b>http://192.168.4.1</b>.</div>");
+  }
+  page += F("</main></body></html>");
+  return page;
+}
+
+void sendProvisioningPage() {
+  provisioningServer.sendHeader("Cache-Control", "no-store");
+  provisioningServer.send(200, "text/html; charset=utf-8", buildProvisioningPage());
+}
+
+void saveProvisioningCredentials() {
+  const String ssid = provisioningServer.arg("ssid");
+  const String password = provisioningServer.arg("password");
+  if (ssid.length() == 0 || ssid.length() > 32 || password.length() > 63) {
+    provisioningServer.send(422, "text/html; charset=utf-8",
+                            buildProvisioningPage("SSID hoac mat khau khong hop le."));
+    return;
+  }
+
+  wifiPreferences.begin(WIFI_PREFERENCES_NAMESPACE, false);
+  const size_t ssidBytes = wifiPreferences.putString("ssid", ssid);
+  const size_t passwordBytes = wifiPreferences.putString("password", password);
+  wifiPreferences.end();
+  if (ssidBytes == 0 || (password.length() > 0 && passwordBytes == 0)) {
+    provisioningServer.send(500, "text/html; charset=utf-8",
+                            buildProvisioningPage("Khong luu duoc cau hinh. Hay thu lai."));
+    return;
+  }
+
+  configuredWifiSsid = ssid;
+  configuredWifiPassword = password;
+  provisioningServer.send(200, "text/html; charset=utf-8",
+                          buildProvisioningPage("Da luu Wi-Fi. ESP32 dang khoi dong lai...", true));
+  provisioningRestartPending = true;
+  provisioningRestartAt = millis();
+}
+
+void startProvisioning() {
+  if (provisioningActive) return;
+
+  mqttClient.disconnect();
+  WiFi.setAutoReconnect(false);
+  WiFi.disconnect(false, false);
+  WiFi.mode(WIFI_AP_STA);
+  const IPAddress portalIp(192, 168, 4, 1);
+  const IPAddress portalGateway(192, 168, 4, 1);
+  const IPAddress portalSubnet(255, 255, 255, 0);
+  WiFi.softAPConfig(portalIp, portalGateway, portalSubnet);
+
+  if (!WiFi.softAP(SETUP_AP_SSID, SETUP_AP_PASSWORD)) {
+    Serial.println("Khong tao duoc Wi-Fi cai dat.");
+    return;
+  }
+
+  provisioningDns.setErrorReplyCode(DNSReplyCode::NoError);
+  provisioningDns.start(53, "*", portalIp);
+  provisioningServer.on("/", HTTP_GET, sendProvisioningPage);
+  provisioningServer.on("/save", HTTP_POST, saveProvisioningCredentials);
+  provisioningServer.on("/generate_204", HTTP_GET, sendProvisioningPage);
+  provisioningServer.on("/hotspot-detect.html", HTTP_GET, sendProvisioningPage);
+  provisioningServer.on("/connecttest.txt", HTTP_GET, sendProvisioningPage);
+  provisioningServer.on("/ncsi.txt", HTTP_GET, sendProvisioningPage);
+  provisioningServer.onNotFound([]() {
+    provisioningServer.sendHeader("Location", SETUP_PORTAL_URL, true);
+    provisioningServer.send(302, "text/plain", "");
+  });
+  provisioningServer.begin();
+  provisioningActive = true;
+  wifiAttemptActive = false;
+
+  Serial.println();
+  Serial.println("=== CAI DAT WIFI LAN DAU ===");
+  Serial.print("Ket noi Wi-Fi: ");
+  Serial.println(SETUP_AP_SSID);
+  Serial.print("Mat khau: ");
+  Serial.println(SETUP_AP_PASSWORD);
+  Serial.print("Mo trang: ");
+  Serial.println(SETUP_PORTAL_URL);
+  Serial.println("Hoac quet ma QR trong firmware/AquaIoT-Setup-QR.png");
+  updateOLED();
+}
+
+void handleProvisioning() {
+  if (!provisioningActive) return;
+  provisioningDns.processNextRequest();
+  provisioningServer.handleClient();
+  if (provisioningRestartPending &&
+      elapsed(millis(), provisioningRestartAt, PROVISIONING_RESTART_DELAY_MS)) {
+    Serial.println("Khoi dong lai de ket noi Wi-Fi moi...");
+    delay(100);
+    ESP.restart();
+  }
+}
+
+void handleBootButton() {
+  const bool pressed = digitalRead(BOOT_BUTTON_PIN) == LOW;
+  if (!pressed) {
+    bootButtonPressedAt = 0;
+    return;
+  }
+
+  const unsigned long now = millis();
+  if (bootButtonPressedAt == 0) {
+    bootButtonPressedAt = now;
+    return;
+  }
+  if (!elapsed(now, bootButtonPressedAt, BOOT_BUTTON_RESET_MS)) return;
+
+  Serial.println("Da giu BOOT 5 giay: xoa Wi-Fi va mo lai trang cai dat.");
+  clearStoredWiFiCredentials();
+  delay(150);
+  ESP.restart();
+}
+
 void connectWiFi() {
+  if (provisioningActive) return;
+  if (configuredWifiSsid.length() == 0) {
+    startProvisioning();
+    return;
+  }
   if (WiFi.status() == WL_CONNECTED) {
     wifiAttemptActive = false;
+    wifiFailureCount = 0;
     return;
   }
 
@@ -617,6 +857,11 @@ void connectWiFi() {
     WiFi.disconnect(false, false);
     wifiAttemptActive = false;
     lastWiFiAttemptAt = now;
+    wifiFailureCount++;
+    if (wifiFailureCount >= WIFI_FAILURES_BEFORE_PORTAL) {
+      Serial.println("Wi-Fi that bai nhieu lan; mo trang cai dat lai.");
+      startProvisioning();
+    }
     return;
   }
 
@@ -626,9 +871,9 @@ void connectWiFi() {
   wifiAttemptActive = true;
 
   Serial.print("Dang ket noi WiFi: ");
-  Serial.println(WIFI_SSID);
+  Serial.println(configuredWifiSsid);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(configuredWifiSsid.c_str(), configuredWifiPassword.c_str());
 }
 
 void connectMQTT() {
@@ -689,6 +934,7 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_GREEN_PIN, OUTPUT);
   pinMode(LED_RED_PIN, OUTPUT);
+  pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
   setRelay(false);
   updateAlertLEDs();
 
@@ -710,8 +956,13 @@ void setup() {
   mqttClient.setSocketTimeout(5);
 
   WiFi.persistent(false);
-  WiFi.setAutoReconnect(true);
-  connectWiFi();
+  loadStoredWiFiCredentials();
+  if (configuredWifiSsid.length() == 0) {
+    startProvisioning();
+  } else {
+    WiFi.setAutoReconnect(true);
+    connectWiFi();
+  }
 
   // First measurement is available even before Wi-Fi/MQTT connects.
   readAllSensors();
@@ -723,6 +974,8 @@ void loop() {
   const unsigned long now = millis();
 
   handleSerialCommand();
+  handleBootButton();
+  handleProvisioning();
   updateAlertLEDs();
 
   const bool wifiConnected = WiFi.status() == WL_CONNECTED;
@@ -741,10 +994,12 @@ void loop() {
   }
   wifiWasConnected = wifiConnected;
 
-  if (!wifiConnected) connectWiFi();
+  if (!wifiConnected && !provisioningActive) connectWiFi();
 
-  connectMQTT();
-  mqttClient.loop();
+  if (!provisioningActive) {
+    connectMQTT();
+    mqttClient.loop();
+  }
 
   if (telemetryRequested) {
     telemetryRequested = false;

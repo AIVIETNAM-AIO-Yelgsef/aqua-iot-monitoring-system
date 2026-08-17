@@ -49,7 +49,7 @@ Cài trong **Library Manager**:
 
 Board package: **esp32 by Espressif Systems**. Chọn board **ESP32 Dev Module** và đúng cổng COM của CP210x.
 
-## 3. Cấu hình trước khi nạp
+## 3. Cấu hình MQTT trước khi nạp
 
 Trong thư mục `aqua_iot_nodered`, sao chép file mẫu:
 
@@ -57,31 +57,41 @@ Trong thư mục `aqua_iot_nodered`, sao chép file mẫu:
 aqua_secrets.example.h -> aqua_secrets.h
 ```
 
-Sau đó chỉ sửa các giá trị trong `aqua_secrets.h`:
+Chỉ cần tạo file này khi muốn đổi cấu hình MQTT mặc định:
 
 ```cpp
-#define AQUA_WIFI_SSID "AQUA_IOT"
-#define AQUA_WIFI_PASSWORD "MAT_KHAU_WIFI_CUA_BAN"
 #define AQUA_MQTT_HOST "broker.hivemq.com"
 #define AQUA_MQTT_PORT 1883
 #define AQUA_MQTT_TOPIC_ROOT "aqua-iot/nhom18-24127175-24127257/esp32-aqua-01"
 ```
 
-`aqua_secrets.h` đã được `.gitignore` loại trừ nên mật khẩu Wi-Fi không bị đưa lên Git. Không sửa hoặc ghi mật khẩu thật vào `aqua_secrets.example.h`.
+`aqua_secrets.h` đã được `.gitignore` loại trừ. Wi-Fi nhà không còn được ghi trong source; người dùng nhập Wi-Fi qua trang cài đặt của ESP32 và thông tin được lưu trong NVS của chính ESP32.
 
 ESP32 và Node-RED cùng kết nối tới `broker.hivemq.com:1883`, vì vậy không cần nhập IPv4 máy tính và không cần chạy Mosquitto cục bộ. Giữ `AQUA_MQTT_TOPIC_ROOT` giống hệt cấu hình Node-RED. ESP32 tự tạo Client ID riêng từ MAC; không dùng Client ID `nodered-hcmus-aqua-18` của Node-RED.
 
-## 4. Nạp và kiểm tra
+## 4. Cài đặt Wi-Fi lần đầu bằng QR
 
 1. Mở `aqua_iot_nodered.ino` trong Arduino IDE.
 2. Chọn **ESP32 Dev Module** và cổng COM đúng.
 3. Bấm **Verify**, sau đó **Upload**.
 4. Mở Serial Monitor ở `115200 baud`.
-5. Chạy `nodered/BAT_DAU_WEB.cmd`, sau đó mở `http://127.0.0.1:1880/`.
+5. Mở mã [`AquaIoT-Setup-QR.png`](AquaIoT-Setup-QR.png) trên máy tính và dùng camera điện thoại quét mã.
+6. Điện thoại kết nối tới Wi-Fi `AquaIoT-Setup`, mật khẩu `aqua1234`. Trang cài đặt thường tự mở.
+7. Nếu trang không tự mở, truy cập `http://192.168.4.1`.
+8. Chọn Wi-Fi nhà băng tần **2.4 GHz**, nhập mật khẩu rồi bấm **Lưu và kết nối**. ESP32 tự khởi động lại.
+9. Chạy `nodered/BAT_DAU_WEB.cmd`, sau đó mở `http://127.0.0.1:1880/`.
 
 Serial phải lần lượt thấy `WiFi OK`, `MQTT: DA KET NOI` và các dòng `MQTT TX`. Nếu cảm biến analog báo quá áp/bão hòa, rút USB ngay rồi kiểm tra lại cầu chia `20 kΩ/4.7 kΩ`.
 
-Nếu sau 30 giây thấy `WiFi timeout`, kiểm tra SSID/mật khẩu, bảo đảm mạng có băng tần **2.4 GHz** và không yêu cầu đăng nhập qua trang web. Firmware mới không gọi `WiFi.begin()` chồng lên lần kết nối đang chạy, nên không còn lặp lỗi `sta is connecting, cannot set config`.
+Nếu Wi-Fi đã lưu kết nối thất bại hai lần, ESP32 tự mở lại mạng `AquaIoT-Setup`. Muốn đổi Wi-Fi chủ động, giữ nút **BOOT** trên ESP32 trong 5 giây khi thiết bị đang chạy; cấu hình Wi-Fi cũ sẽ bị xóa và portal được mở lại. Mật khẩu Wi-Fi không xuất hiện trong QR.
+
+QR mã hóa đúng chuỗi Wi-Fi chuẩn sau:
+
+```text
+WIFI:T:WPA;S:AquaIoT-Setup;P:aqua1234;;
+```
+
+![QR kết nối AquaIoT-Setup](AquaIoT-Setup-QR.png)
 
 Có thể thử relay từ Serial Monitor:
 

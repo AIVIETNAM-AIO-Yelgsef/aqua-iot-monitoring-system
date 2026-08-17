@@ -27,7 +27,7 @@ website/    Giao diện quản lý responsive
 2. Mở `nodered/TAO_CAU_HINH.cmd` nếu cần cấu hình Firebase, Telegram hoặc OpenAI.
 3. Chạy `nodered/BAT_DAU_WEB.cmd`.
 4. Mở `http://localhost:1880/`.
-5. Điền Wi-Fi trong `aqua_secrets.h`; broker và topic công cộng đã được cấu hình sẵn.
+5. Nạp firmware, quét [`firmware/AquaIoT-Setup-QR.png`](firmware/AquaIoT-Setup-QR.png), chọn Wi-Fi 2.4 GHz và nhập mật khẩu trên trang cài đặt của ESP32.
 
 Hướng dẫn chi tiết nằm tại [`nodered/README.md`](nodered/README.md), [`website/README.md`](website/README.md) và [`firmware/README.md`](firmware/README.md).
 
