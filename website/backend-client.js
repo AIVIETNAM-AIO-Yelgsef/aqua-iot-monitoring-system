@@ -182,20 +182,27 @@
       emitAuth(user);
       return user;
     },
-    async register(name, email, password) {
+    async register(name, email, password, deviceId) {
       await ready;
       if (firebaseAuth) {
         const credential = await firebaseApi.createUserWithEmailAndPassword(firebaseAuth, email, password);
-        await firebaseApi.updateProfile(credential.user, { displayName: name });
-        const user = mapFirebaseUser(credential.user);
-        emitAuth(user);
-        await this.action("profile", { profile: { name, pondName: "Hồ cá chính" } }).catch(() => {});
-        return user;
+        try {
+          await firebaseApi.updateProfile(credential.user, { displayName: name });
+          const user = mapFirebaseUser(credential.user);
+          emitAuth(user);
+          await this.action("claimDevice", { deviceId });
+          await this.action("profile", { profile: { name, pondName: "Hồ cá chính" } }).catch(() => {});
+          return user;
+        } catch (error) {
+          await firebaseApi.deleteUser(credential.user).catch(() => {});
+          emitAuth(null);
+          throw error;
+        }
       }
       if (publicConfig.authMode !== "local") throw new Error("Hệ thống tài khoản chưa được cấu hình.");
       const result = await request("/api/action", {
         method: "POST",
-        body: JSON.stringify({ action: "authRegister", name, email, password })
+        body: JSON.stringify({ action: "authRegister", name, email, password, deviceId })
       });
       const user = { ...(result.user || {}), accessToken: result.accessToken, expiresAt: result.expiresAt };
       rememberDemo(user, true);

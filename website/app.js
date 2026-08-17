@@ -5,12 +5,13 @@
   const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
   const api = window.AquaAPI;
   const HOUR = 60 * 60 * 1000;
-  const STORAGE = {
-    aerator: "aqua_iot_aerator_state",
-    thresholds: "aqua_iot_thresholds",
-    alerts: "aqua_iot_demo_alerts",
-    telegram: "aqua_iot_telegram_demo"
-  };
+  const DEFAULT_THRESHOLDS = Object.freeze({ tempMin: 24, tempMax: 30, phMin: 6.5, phMax: 8 });
+  const LEGACY_SHARED_STORAGE_KEYS = [
+    "aqua_iot_aerator_state",
+    "aqua_iot_thresholds",
+    "aqua_iot_demo_alerts",
+    "aqua_iot_telegram_demo"
+  ];
 
   const pageTitles = {
     overview: "Tổng quan",
@@ -50,33 +51,7 @@
     month: "2-digit"
   });
 
-  const storage = {
-    get(key, fallback = null, session = false) {
-      try {
-        const raw = (session ? sessionStorage : localStorage).getItem(key);
-        return raw === null ? fallback : JSON.parse(raw);
-      } catch (_) {
-        return fallback;
-      }
-    },
-    set(key, value, session = false) {
-      try {
-        (session ? sessionStorage : localStorage).setItem(key, JSON.stringify(value));
-        return true;
-      } catch (_) {
-        return false;
-      }
-    },
-    remove(key, session = false) {
-      try { (session ? sessionStorage : localStorage).removeItem(key); } catch (_) { /* noop */ }
-    }
-  };
-
   function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
-  function round(value, digits = 1) {
-    const factor = 10 ** digits;
-    return Math.round(value * factor) / factor;
-  }
   function finite(value) {
     if (value === null || value === undefined || value === "") return null;
     return Number.isFinite(Number(value)) ? Number(value) : null;
@@ -89,10 +64,6 @@
     if (typeof value === "number") return value < 1e12 ? value * 1000 : value;
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) ? parsed : Date.now();
-  }
-  function pseudoRandom(seed) {
-    const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-    return value - Math.floor(value);
   }
   function normalizeText(text) {
     return String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
@@ -118,44 +89,6 @@
     return `${days} ngày trước`;
   }
 
-  function makeHistory() {
-    const records = [];
-    const end = Date.now();
-    for (let hoursAgo = 719; hoursAgo >= 0; hoursAgo -= 1) {
-      const index = 719 - hoursAgo;
-      const daily = Math.sin((index % 24) / 24 * Math.PI * 2 - 1.1);
-      const slow = Math.sin(index / 57);
-      const noise = (pseudoRandom(index + 17) - 0.5);
-      const temperature = 27.1 + daily * 0.55 + slow * 0.24 + noise * 0.18;
-      const ph = 7.16 + Math.sin(index / 31 + 0.7) * 0.17 + (pseudoRandom(index + 91) - 0.5) * 0.08;
-      records.push({
-        timestamp: end - hoursAgo * HOUR,
-        temperature: round(temperature, 1),
-        ph: round(clamp(ph, 6.75, 7.55), 2)
-      });
-    }
-    records[records.length - 1] = { timestamp: end, temperature: 27.4, ph: 7.2 };
-    return records;
-  }
-
-  function makeLiveBuffer(current) {
-    return Array.from({ length: 30 }, (_, index) => ({
-      timestamp: Date.now() - (29 - index) * 5000,
-      temperature: round(current.temperature + Math.sin(index / 4) * 0.12 + (pseudoRandom(index) - .5) * .06, 1),
-      ph: round(current.ph + Math.cos(index / 5) * 0.025 + (pseudoRandom(index + 30) - .5) * .02, 2)
-    }));
-  }
-
-  function defaultAlerts() {
-    const now = Date.now();
-    return [
-      { id: "alert-ph-low", type: "danger", title: "pH thấp hơn ngưỡng demo", message: "Giá trị mô phỏng 6.3 pH · ngưỡng demo 6.5", timestamp: now - 2.4 * HOUR, unread: true, delivery: "Telegram mô phỏng" },
-      { id: "alert-temp-high", type: "warning", title: "Nhiệt độ vượt ngưỡng demo", message: "Giá trị mô phỏng 30.6°C · ngưỡng demo 30.0°C", timestamp: now - 26 * HOUR, unread: true, delivery: "Telegram mô phỏng" },
-      { id: "alert-ph-high", type: "warning", title: "pH cao hơn ngưỡng demo", message: "Giá trị mô phỏng 8.2 pH · ngưỡng demo 8.0", timestamp: now - 73 * HOUR, unread: false, delivery: "Telegram mô phỏng" }
-    ];
-  }
-
-  const savedThresholds = storage.get(STORAGE.thresholds, null);
   const state = {
     currentPage: "overview",
     user: null,
@@ -178,7 +111,7 @@
     historyMetric: "both",
     historyPage: 1,
     historySearch: "",
-    thresholds: savedThresholds && validThresholdObject(savedThresholds) ? savedThresholds : { tempMin: 24, tempMax: 30, phMin: 6.5, phMax: 8 },
+    thresholds: { ...DEFAULT_THRESHOLDS },
     alerts: [],
     telegram: false,
     telegramConnection: { configured: false, connected: false, pending: false, account: null },
@@ -201,6 +134,39 @@
     pendingAeratorValue: null,
     chartModels: new Map()
   };
+
+  function resetAccountScopedState() {
+    state.temperature = null;
+    state.ph = null;
+    state.phRaw = null;
+    state.phVoltage = null;
+    state.turbidityRaw = null;
+    state.turbidityVoltage = null;
+    state.latestPayload = null;
+    state.lastUpdate = 0;
+    state.aerator = false;
+    state.mode = "MANUAL";
+    state.aeratorPending = false;
+    state.aeratorChangedAt = 0;
+    state.history = [];
+    state.liveBuffer = [];
+    state.historyPage = 1;
+    state.thresholds = { ...DEFAULT_THRESHOLDS };
+    state.alerts = [];
+    state.telegram = false;
+    state.telegramConnection = { configured: false, connected: false, pending: false, account: null };
+    state.status = { mqttConnected: false, deviceOnline: false, storage: "local", assigned: false };
+    state.profile = null;
+    state.dashboardLoaded = false;
+    state.pendingAeratorValue = null;
+  }
+
+  function clearLegacySharedBrowserState() {
+    for (const key of LEGACY_SHARED_STORAGE_KEYS) {
+      try { localStorage.removeItem(key); } catch (_) { /* storage can be disabled */ }
+      try { sessionStorage.removeItem(key); } catch (_) { /* storage can be disabled */ }
+    }
+  }
 
   function validThresholdObject(value) {
     return value && ["tempMin", "tempMax", "phMin", "phMax"].every(key => Number.isFinite(Number(value[key]))) && Number(value.tempMin) < Number(value.tempMax) && Number(value.phMin) < Number(value.phMax);
@@ -238,10 +204,12 @@
   }
 
   function showApp(user) {
+    resetAccountScopedState();
     state.user = user;
     $("#auth-screen").classList.add("hidden");
     $("#app-shell").classList.remove("hidden");
     renderUser();
+    $("#pond-name").value = "Hồ cá chính";
     resetChat();
     renderThresholds();
     renderAerator();
@@ -253,6 +221,8 @@
   }
 
   function showAuth() {
+    resetAccountScopedState();
+    state.user = null;
     $("#app-shell").classList.add("hidden");
     $("#auth-screen").classList.remove("hidden");
     $("#login-form").reset();
@@ -318,14 +288,15 @@
       const name = String(form.get("name") || "").trim();
       const email = String(form.get("email") || "").trim().toLowerCase();
       const password = String(form.get("password") || "");
-      if (name.length < 2 || password.length < 6) {
-        toast("Thông tin chưa hợp lệ", "Tên cần từ 2 ký tự và mật khẩu từ 6 ký tự.", "warning");
+      const deviceId = String(form.get("deviceId") || "").trim().toLowerCase();
+      if (name.length < 2 || password.length < 6 || !/^[a-z0-9][a-z0-9-]{5,63}$/.test(deviceId)) {
+        toast("Thông tin chưa hợp lệ", "Kiểm tra họ tên, mật khẩu và mã định danh in trên thiết bị.", "warning");
         return;
       }
       try {
-        const user = await api.register(name, email, password);
+        const user = await api.register(name, email, password, deviceId);
         showApp(user);
-        toast("Tạo tài khoản thành công", api.isFirebase ? "Hồ sơ đã được liên kết với Firebase UID." : "Tài khoản cục bộ đã sẵn sàng.");
+        toast("Tạo tài khoản thành công", `Thiết bị ${deviceId} đã được liên kết riêng với tài khoản này.`);
       } catch (error) { toast("Không thể tạo tài khoản", error.message, "warning"); }
     });
   }
@@ -406,7 +377,8 @@
     };
     $("#mqtt-payload").textContent = JSON.stringify(payload, null, 2);
     const notice = $(".demo-notice");
-    if (notice) notice.innerHTML = `<span class="status-dot"></span> ${state.status.deviceOnline ? "ESP32 đang trực tuyến" : "Đang chờ ESP32"} · ${state.status.mqttConnected ? "MQTT đã kết nối" : "MQTT chưa kết nối"}`;
+    const deviceAssigned = state.status.assigned !== false;
+    if (notice) notice.innerHTML = `<span class="status-dot"></span> ${!deviceAssigned ? "Tài khoản chưa được gán thiết bị" : state.status.deviceOnline ? "ESP32 đang trực tuyến" : "Đang chờ ESP32"} · ${state.status.mqttConnected ? "MQTT đã kết nối" : "MQTT chưa kết nối"}`;
     const badge = $(".demo-data-badge");
     if (badge) badge.innerHTML = `${icon("info")}<span><strong>${state.status.deviceOnline ? "Dữ liệu ESP32" : "Chưa có dữ liệu thật"}</strong><small>${state.status.storage === "firestore" ? "Lưu trên Firebase Firestore" : "Lưu cục bộ tại Node-RED"}</small></span>`;
     const setDeviceBadge = (name, active, activeText, inactiveText, off = false) => {
@@ -499,6 +471,17 @@
         state.liveBuffer.push(latest);
         if (state.liveBuffer.length > 60) state.liveBuffer.shift();
       }
+    } else {
+      state.temperature = null;
+      state.ph = null;
+      state.phRaw = null;
+      state.phVoltage = null;
+      state.turbidityRaw = null;
+      state.turbidityVoltage = null;
+      state.aerator = false;
+      state.lastUpdate = 0;
+      state.latestPayload = null;
+      state.liveBuffer = [];
     }
     if (Array.isArray(data.history)) state.history = data.history.map(normalizeRecord).sort((a, b) => a.timestamp - b.timestamp);
     if (Array.isArray(data.alerts)) state.alerts = data.alerts.map(alert => ({ ...alert, timestamp: parseTimestamp(alert.timestamp || alert.createdAt), unread: alert.unread !== false }));
@@ -539,7 +522,10 @@
       state.user.name = state.profile.name;
       renderUser();
     }
-    if (state.profile?.pondName) $$(".pond-selector strong").forEach(element => { element.textContent = state.profile.pondName; });
+    if (state.profile?.pondName) {
+      $$(".pond-selector strong").forEach(element => { element.textContent = state.profile.pondName; });
+      $("#pond-name").value = state.profile.pondName;
+    }
     renderThresholds();
     renderAerator();
     renderAlerts();
@@ -588,7 +574,7 @@
   function renderAerator() {
     $$(".aerator-toggle").forEach(toggle => {
       toggle.checked = Boolean(state.aerator);
-      toggle.disabled = state.aeratorPending;
+      toggle.disabled = state.aeratorPending || state.status.assigned === false;
     });
     $$('[data-aerator-state]').forEach(element => {
       element.textContent = state.status.deviceOnline ? (state.aerator ? "Đang bật" : "Đang tắt") : "Không xác định";
@@ -598,7 +584,7 @@
     if (quickDot) quickDot.style.background = state.aerator ? "var(--green)" : "#aab7ba";
     $$('[data-aerator-mode]').forEach(button => {
       button.classList.toggle("active", button.dataset.aeratorMode === state.mode);
-      button.disabled = state.aeratorPending;
+      button.disabled = state.aeratorPending || state.status.assigned === false;
     });
     $$('[data-device-mode]').forEach(element => { element.textContent = state.mode; });
     $("#aerator-command-time").textContent = state.aeratorPending ? "Đang chờ phản hồi MQTT" : `${state.mode} · ${state.lastUpdate ? relativeTime(state.lastUpdate).toLowerCase() : "chưa có phản hồi"}`;
@@ -609,7 +595,7 @@
     renderAerator();
     toast("Đang gửi lệnh", `Web → Node-RED → MQTT → ESP32 → Relay (${desired ? "BẬT" : "TẮT"}).`, "info", 2200);
     try {
-      const result = await api.action("relay", { command: desired ? "ON" : "OFF", mode: "MANUAL" });
+      const result = await api.action("relay", { command: desired ? "ON" : "OFF", mode: "MANUAL", deviceId: state.status.deviceId });
       state.mode = "MANUAL";
       state.aeratorChangedAt = Date.now();
       toast("MQTT đã nhận lệnh", result.message || `Đang chờ ESP32 phản hồi trạng thái ${desired ? "BẬT" : "TẮT"}.`);
@@ -629,7 +615,7 @@
       state.aeratorPending = true;
       renderAerator();
       try {
-        const result = await api.action("mode", { mode });
+        const result = await api.action("mode", { mode, deviceId: state.status.deviceId });
         state.mode = mode;
         toast("Đã đổi chế độ", result.message || `Đã gửi chế độ ${mode} đến ESP32.`);
         setTimeout(() => refreshDashboard(true), 500);
@@ -816,13 +802,12 @@
   }
 
   function persistAlerts() {
-    storage.set(STORAGE.alerts, state.alerts);
     renderAlerts();
   }
 
   async function simulateAlert() {
     try {
-      const result = await api.action("testAlert", {});
+      const result = await api.action("testAlert", { deviceId: state.status.deviceId });
       toast("Đã kiểm tra cảnh báo", result.message || (state.features.telegram ? "Telegram Bot API đã được gọi." : "Cảnh báo đã ghi; Telegram chưa có khóa."), "warning", 4200);
       await refreshDashboard(true);
     } catch (error) { toast("Không tạo được cảnh báo", error.message, "warning"); }
@@ -868,7 +853,6 @@
         return;
       }
       state.thresholds = next;
-      storage.set(STORAGE.thresholds, next);
       renderThresholds();
       try {
         await api.action("settings", { settings: { ...next, telegramEnabled: state.telegram, mode: state.mode } });
@@ -1472,9 +1456,26 @@
         toast("Đã lưu hồ sơ", state.status.storage === "firestore" ? "Hồ sơ đã được lưu trên Firestore." : "Hồ sơ đã được lưu trong Node-RED cục bộ.");
       } catch (error) { toast("Không lưu được hồ sơ", error.message, "warning"); }
     });
+    $("#device-claim-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const deviceId = String($("#claim-device-id").value || "").trim().toLowerCase();
+      if (!/^[a-z0-9][a-z0-9-]{5,63}$/.test(deviceId)) {
+        toast("Mã thiết bị chưa hợp lệ", "Hãy chép đúng mã đang hiện trên ESP32.", "warning");
+        return;
+      }
+      try {
+        await api.action("claimDevice", { deviceId });
+        await refreshDashboard(true);
+        $("#claim-device-id").value = "";
+        $("#current-device-id").textContent = deviceId;
+        toast("Đã liên kết thiết bị", `Tài khoản hiện có quyền theo dõi ${deviceId}.`, "success");
+      } catch (error) { toast("Không liên kết được", error.message, "warning"); }
+    });
   }
 
   function renderIntegrationStatus() {
+    const currentDevice = $("#current-device-id");
+    if (currentDevice) currentDevice.textContent = state.status.deviceId || "Chưa liên kết";
     const card = $(".environment-card");
     if (!card) return;
     const title = $("h3", card);
@@ -1497,6 +1498,7 @@
   }
 
   async function init() {
+    clearLegacySharedBrowserState();
     initAuth();
     initNavigation();
     initAerator();

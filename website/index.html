@@ -98,6 +98,7 @@
           <label class="field"><span>Họ và tên</span><span class="input-wrap"><svg><use href="#i-user"/></svg><input name="name" type="text" autocomplete="name" placeholder="Nguyễn Văn A" minlength="2" required></span></label>
           <label class="field"><span>Email</span><span class="input-wrap"><svg><use href="#i-user"/></svg><input name="email" type="email" autocomplete="email" placeholder="tenban@email.com" required></span></label>
           <label class="field"><span>Mật khẩu</span><span class="input-wrap"><svg><use href="#i-lock"/></svg><input name="password" type="password" autocomplete="new-password" placeholder="Tối thiểu 6 ký tự" minlength="6" required><button class="password-toggle" type="button" aria-label="Hiện mật khẩu"><svg><use href="#i-eye"/></svg></button></span></label>
+          <label class="field"><span>Mã định danh thiết bị</span><span class="input-wrap"><svg><use href="#i-cpu"/></svg><input name="deviceId" type="text" autocomplete="off" spellcheck="false" placeholder="Ví dụ: aqua-20500de64424" minlength="6" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9-]{5,63}" required></span><small>Nhập mã hiển thị trên ESP32 khi cấu hình Wi‑Fi. Mỗi mã chỉ liên kết được với một tài khoản.</small></label>
           <label class="check-label policy"><input type="checkbox" required><span></span> Tôi đồng ý sử dụng hệ thống phục vụ đồ án.</label>
           <button class="primary-button full" type="submit">Tạo tài khoản <svg><use href="#i-chevron"/></svg></button>
         </form>
@@ -263,7 +264,7 @@
             <article class="panel telemetry-panel">
               <div class="panel-heading compact"><div><span class="panel-icon"><svg><use href="#i-database"/></svg></span><span><h3>Bản tin mới nhất</h3><p>Payload nhận từ ESP32 qua HiveMQ Public</p></span></div><span class="code-chip">JSON</span></div>
               <pre id="mqtt-payload">{
-  "deviceId": "esp32-aqua-01",
+  "deviceId": "aqua-20500de64424",
   "temperature": 27.4,
   "ph": 7.2,
   "timestamp": "2026-07-21T07:00:00+07:00"
@@ -375,6 +376,10 @@
               <article class="panel profile-card">
                 <div class="profile-cover"></div><div class="profile-main"><span class="profile-avatar" data-user-initial>ND</span><div><h3 data-user-name>Người dùng</h3><p id="profile-email"></p><span><span data-account-mode>Đang xác thực</span> · Hồ cá chính</span></div></div>
                 <form id="profile-form"><div class="form-grid"><label class="field"><span>Họ và tên</span><span class="input-wrap plain"><input id="profile-name" name="name" type="text" value="Người dùng" required></span></label><label class="field"><span>Email</span><span class="input-wrap plain disabled"><input id="profile-email-input" type="email" value="" disabled></span></label></div><label class="field"><span>Tên hồ cá</span><span class="input-wrap plain"><input id="pond-name" name="pondName" type="text" value="Hồ cá chính" required></span></label><button class="primary-button" type="submit"><svg><use href="#i-check"/></svg> Lưu hồ sơ</button></form>
+              </article>
+              <article class="panel">
+                <div class="panel-heading compact"><div><span class="panel-icon"><svg><use href="#i-cpu"/></svg></span><span><h3>Liên kết bộ thiết bị</h3><p>Dùng khi đã có tài khoản hoặc muốn thêm một bộ ESP32 khác.</p></span></div><span class="code-chip" id="current-device-id">Chưa liên kết</span></div>
+                <form id="device-claim-form"><label class="field"><span>Mã định danh thiết bị</span><span class="input-wrap plain"><input id="claim-device-id" name="deviceId" type="text" autocomplete="off" spellcheck="false" placeholder="aqua-20500de64424" minlength="6" maxlength="64" required></span><small>Mã xuất hiện trên OLED, Serial Monitor và trang cài đặt Wi‑Fi của ESP32.</small></label><button class="primary-button" type="submit"><svg><use href="#i-check"/></svg> Liên kết thiết bị</button></form>
               </article>
               <article class="panel feature-map-card">
                 <div class="panel-heading compact"><div><span class="panel-icon"><svg><use href="#i-grid"/></svg></span><span><h3>Đối chiếu chức năng đề xuất</h3><p>Mỗi khu vực giao diện được truy vết về đúng ID chức năng.</p></span></div><span class="complete-badge"><svg><use href="#i-check"/></svg> 8/8</span></div>
