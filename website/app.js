@@ -187,7 +187,14 @@
     telegramBusy: false,
     status: { mqttConnected: false, deviceOnline: false, storage: "local" },
     features: {},
-    assistantStatus: { configured: false, available: false, degraded: false, model: null, reason: null },
+    assistantStatus: {
+      configured: false,
+      available: false,
+      degraded: false,
+      model: null,
+      reason: null,
+      provider: { id: "openai", label: "OpenAI", hostname: "api.openai.com", official: true }
+    },
     chatHistory: [],
     chatBusy: false,
     profile: null,
@@ -499,7 +506,7 @@
 
   function applyDashboard(data = {}) {
     const telegramWasPending = Boolean(state.telegramConnection?.pending && !state.telegramConnection?.connected);
-    const assistantSignature = `${state.assistantStatus.configured}:${state.assistantStatus.available}:${state.assistantStatus.reason || ""}:${state.assistantStatus.model || ""}`;
+    const assistantSignature = `${state.assistantStatus.configured}:${state.assistantStatus.available}:${state.assistantStatus.reason || ""}:${state.assistantStatus.model || ""}:${state.assistantStatus.provider?.id || ""}`;
     const latest = data.latest ? normalizeRecord(data.latest) : null;
     if (latest) {
       state.temperature = latest.temperature;
@@ -564,7 +571,7 @@
     updateSensorDOM();
     renderIntegrationStatus();
     renderAssistantStatus();
-    const nextAssistantSignature = `${state.assistantStatus.configured}:${state.assistantStatus.available}:${state.assistantStatus.reason || ""}:${state.assistantStatus.model || ""}`;
+    const nextAssistantSignature = `${state.assistantStatus.configured}:${state.assistantStatus.available}:${state.assistantStatus.reason || ""}:${state.assistantStatus.model || ""}:${state.assistantStatus.provider?.id || ""}`;
     if (!state.chatBusy && state.chatHistory.length === 0 && assistantSignature !== nextAssistantSignature) resetChat();
     renderActivePage();
     if (telegramWasPending && state.telegramConnection.connected) {
@@ -1246,18 +1253,31 @@
     });
   }
 
-  function assistantReasonLabel(reason) {
-    const labels = {
-      OPENAI_AUTH_FAILED: "khóa OpenAI không hợp lệ",
-      OPENAI_QUOTA_EXCEEDED: "tài khoản OpenAI đã hết hạn mức",
-      OPENAI_RATE_LIMITED: "OpenAI đang giới hạn tốc độ",
-      OPENAI_MODEL_UNAVAILABLE: "model OpenAI chưa khả dụng",
-      OPENAI_TIMEOUT: "OpenAI phản hồi quá chậm",
-      OPENAI_SDK_UNAVAILABLE: "backend thiếu OpenAI SDK",
-      OPENAI_NOT_CONFIGURED: "chưa cấu hình OpenAI",
-      OPENAI_UNAVAILABLE: "OpenAI tạm thời không khả dụng"
+  function assistantProvider(service = state.assistantStatus || {}) {
+    const provider = service.provider && typeof service.provider === "object" ? service.provider : {};
+    return {
+      id: String(provider.id || "openai"),
+      label: String(provider.label || "OpenAI"),
+      hostname: provider.hostname ? String(provider.hostname) : null,
+      official: provider.official !== false
     };
-    return labels[reason] || "OpenAI tạm thời không khả dụng";
+  }
+
+  function assistantReasonLabel(reason, service = state.assistantStatus || {}) {
+    const provider = assistantProvider(service).label;
+    const labels = {
+      OPENAI_AUTH_FAILED: `khóa API của ${provider} không hợp lệ`,
+      OPENAI_QUOTA_EXCEEDED: `tài khoản ${provider} đã hết hạn mức`,
+      OPENAI_RATE_LIMITED: `${provider} đang giới hạn tốc độ`,
+      OPENAI_MODEL_UNAVAILABLE: `model trên ${provider} chưa khả dụng`,
+      OPENAI_TIMEOUT: `${provider} phản hồi quá chậm`,
+      OPENAI_SDK_UNAVAILABLE: "backend thiếu OpenAI SDK",
+      OPENAI_HTTP_CLIENT_UNAVAILABLE: "backend thiếu HTTP client để gọi endpoint AI",
+      OPENAI_BASE_URL_INVALID: "endpoint AI phải là địa chỉ HTTPS hợp lệ",
+      OPENAI_NOT_CONFIGURED: "chưa cấu hình nhà cung cấp AI",
+      OPENAI_UNAVAILABLE: `${provider} tạm thời không khả dụng`
+    };
+    return labels[reason] || `${provider} tạm thời không khả dụng`;
   }
 
   function renderAssistantStatus() {
@@ -1269,6 +1289,7 @@
     const clear = $("#clear-chat");
     const form = $("#chat-form");
     const service = state.assistantStatus || {};
+    const provider = assistantProvider(service);
     let modeState = "offline";
     let modeText = "Fallback cục bộ";
     let statusState = "ready";
@@ -1279,13 +1300,13 @@
       statusText = "Đang phân tích dữ liệu hồ";
     } else if (service.available) {
       modeState = "online";
-      modeText = `OpenAI · ${service.model || "Responses API"}`;
-      statusText = "OpenAI sẵn sàng trả lời";
+      modeText = `${provider.label} · ${service.model || "Responses API"}`;
+      statusText = `${provider.label} sẵn sàng trả lời`;
     } else if (service.configured) {
       modeState = "degraded";
-      modeText = "OpenAI lỗi · dùng fallback";
+      modeText = `${provider.label} lỗi · dùng fallback`;
       statusState = "degraded";
-      statusText = assistantReasonLabel(service.reason);
+      statusText = assistantReasonLabel(service.reason, service);
     }
 
     if (mode) mode.dataset.state = modeState;
@@ -1301,7 +1322,7 @@
     if (result.assistant && typeof result.assistant === "object") {
       state.assistantStatus = { ...state.assistantStatus, ...result.assistant };
     } else if (result.source === "openai") {
-      state.assistantStatus = { configured: true, available: true, degraded: false, model: result.model || null, reason: null };
+      state.assistantStatus = { ...state.assistantStatus, configured: true, available: true, degraded: false, model: result.model || null, reason: null };
     } else if (result.degraded) {
       state.assistantStatus = {
         ...state.assistantStatus,
@@ -1331,10 +1352,11 @@
     bubble.textContent = text;
     const stamp = document.createElement("span");
     stamp.className = "message-time";
+    const provider = assistantProvider({ ...state.assistantStatus, ...(meta.provider ? { provider: meta.provider } : {}) });
     const sourceLabel = role === "user"
       ? "bạn"
       : meta.source === "openai"
-        ? `OpenAI${meta.model ? ` · ${meta.model}` : ""}`
+        ? `${provider.label}${meta.model ? ` · ${meta.model}` : ""}`
         : meta.source === "local-fallback" || meta.source === "browser-fallback"
           ? "trợ lý cục bộ"
           : "Trợ lý Aqua";
@@ -1351,11 +1373,12 @@
     state.chatHistory = [];
     $("#chat-messages").innerHTML = "";
     const service = state.assistantStatus || {};
+    const provider = assistantProvider(service);
     const availability = service.available
-      ? `OpenAI Responses API (${service.model || "model đã cấu hình"}) đã sẵn sàng.`
+      ? `${provider.label} (${service.model || "model đã cấu hình"}) đã sẵn sàng.`
       : service.configured
-        ? `OpenAI hiện lỗi: ${assistantReasonLabel(service.reason)}. Tôi sẽ dùng bộ trả lời cục bộ để hệ thống không bị gián đoạn.`
-        : "Chưa cấu hình OpenAI nên hiện dùng bộ trả lời cục bộ.";
+        ? `${provider.label} hiện lỗi: ${assistantReasonLabel(service.reason, service)}. Tôi sẽ dùng bộ trả lời cục bộ để hệ thống không bị gián đoạn.`
+        : "Chưa cấu hình nhà cung cấp AI nên hiện dùng bộ trả lời cục bộ.";
     addChatMessage("assistant", `Xin chào ${firstName(state.user?.name)}! Tôi có thể dùng dữ liệu cảm biến hiện tại, 24 giờ lịch sử, cảnh báo và trạng thái relay để trả lời nhiều lượt. ${availability}`);
     renderAssistantStatus();
   }
@@ -1410,12 +1433,13 @@
       addChatMessage("assistant", answer, {
         source: result.source,
         model: result.model,
+        provider: result.assistant?.provider || state.assistantStatus.provider,
         timestamp: result.replyAt
       });
       state.chatHistory.push({ role: "assistant", content: String(answer).slice(0, 500) });
       state.chatHistory = state.chatHistory.slice(-10);
       if (result.degraded && result.reason && result.reason !== previousReason) {
-        toast("Chatbot đang dùng fallback", assistantReasonLabel(result.reason), "warning", 4800);
+        toast("Chatbot đang dùng fallback", assistantReasonLabel(result.reason, state.assistantStatus), "warning", 4800);
       }
     } catch (error) {
       const answer = error.status === 429
@@ -1486,12 +1510,13 @@
     if (values[1]) values[1].textContent = state.status.mqttConnected ? "Đã kết nối" : "Chờ kết nối";
     if (values[2]) values[2].textContent = state.features.firestore ? "Đã kết nối" : "Lưu cục bộ";
     if (values[3]) {
-      const openai = state.assistantStatus.available
-        ? "OpenAI ✓"
+      const provider = assistantProvider();
+      const assistant = state.assistantStatus.available
+        ? `${provider.label} ✓`
         : state.assistantStatus.configured
-          ? "OpenAI lỗi"
-          : "OpenAI —";
-      values[3].textContent = `${openai} / ${state.features.telegram ? "Telegram ✓" : "Telegram —"}`;
+          ? `${provider.label} lỗi`
+          : "AI —";
+      values[3].textContent = `${assistant} / ${state.features.telegram ? "Telegram ✓" : "Telegram —"}`;
     }
   }
 

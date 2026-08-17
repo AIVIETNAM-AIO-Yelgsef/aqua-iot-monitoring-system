@@ -349,14 +349,14 @@
         </section>
 
         <section class="page-view assistant-view" data-view="assistant">
-          <div class="assistant-header"><div><span class="section-kicker">YC8 · OPENAI RESPONSES API</span><h2>Trợ lý dữ liệu Aqua</h2><p>Hỏi nhiều lượt về trạng thái, pH, nhiệt độ, lịch sử, cảnh báo và máy sủi.</p></div><span class="assistant-mode" id="assistant-mode" data-state="checking"><i></i><span id="assistant-mode-label">Đang kiểm tra OpenAI</span></span></div>
+          <div class="assistant-header"><div><span class="section-kicker">YC8 · RESPONSES API</span><h2>Trợ lý dữ liệu Aqua</h2><p>Hỏi nhiều lượt về trạng thái, pH, nhiệt độ, lịch sử, cảnh báo và máy sủi.</p></div><span class="assistant-mode" id="assistant-mode" data-state="checking"><i></i><span id="assistant-mode-label">Đang kiểm tra AI</span></span></div>
           <div class="assistant-layout">
             <article class="chat-panel">
               <div class="chat-head"><div><span class="bot-avatar"><svg><use href="#i-chat"/></svg></span><span><strong>Trợ lý Aqua</strong><small id="assistant-status"><i></i><span>Sẵn sàng trả lời</span></small></span></div><button id="clear-chat" type="button"><svg><use href="#i-refresh"/></svg> Cuộc trò chuyện mới</button></div>
               <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
               <div class="typing-indicator hidden" id="typing-indicator"><span></span><span></span><span></span><small>Trợ lý đang phân tích dữ liệu hệ thống…</small></div>
               <form class="chat-composer" id="chat-form"><label for="chat-input" class="sr-only">Nhập câu hỏi</label><textarea id="chat-input" rows="1" placeholder="Ví dụ: pH hiện tại là bao nhiêu?" maxlength="500"></textarea><button id="chat-send" type="submit" aria-label="Gửi câu hỏi"><svg><use href="#i-send"/></svg></button></form>
-              <p class="chat-disclaimer"><svg><use href="#i-info"/></svg> Chatbot chỉ đọc dữ liệu. Khóa OpenAI chỉ nằm tại backend Node-RED và không xuất hiện ở trình duyệt.</p>
+              <p class="chat-disclaimer"><svg><use href="#i-info"/></svg> Chatbot chỉ đọc dữ liệu. Khóa API chỉ nằm tại backend; câu hỏi và ngữ cảnh cảm biến được gửi tới nhà cung cấp AI đang cấu hình.</p>
             </article>
             <aside class="assistant-sidebar">
               <article class="panel suggested-card"><h3>Câu hỏi gợi ý</h3><p>Chọn một câu để thử luồng chatbot.</p><div class="suggestion-list"><button type="button" data-question="pH hiện tại của hồ là bao nhiêu?"><span><svg><use href="#i-water"/></svg></span>pH hiện tại của hồ là bao nhiêu?<svg><use href="#i-chevron"/></svg></button><button type="button" data-question="Nhiệt độ nước có ổn định không?"><span><svg><use href="#i-thermometer"/></svg></span>Nhiệt độ nước có ổn định không?<svg><use href="#i-chevron"/></svg></button><button type="button" data-question="Máy sủi đang bật hay tắt?"><span><svg><use href="#i-wind"/></svg></span>Máy sủi đang bật hay tắt?<svg><use href="#i-chevron"/></svg></button><button type="button" data-question="Tóm tắt tình trạng hồ cá hôm nay"><span><svg><use href="#i-activity"/></svg></span>Tóm tắt tình trạng hồ cá hôm nay<svg><use href="#i-chevron"/></svg></button></div></article>
@@ -392,7 +392,7 @@
             </div>
             <aside class="settings-side">
               <article class="panel project-card"><div class="project-logo"><img src="assets/logo-hcmus.png" alt="Logo HCMUS"></div><span class="feature-code">ĐỒ ÁN NHÓM 18</span><h3>Hệ thống IoT giám sát và cảnh báo chất lượng nước hồ cá</h3><p>Học phần Vật lý cho Công nghệ Thông tin · HK3/2025–2026.</p><div class="team-list"><div><span>HN</span><p><strong>Lê Đoàn Nhật Huy</strong><small>24127175</small></p></div><div><span>TT</span><p><strong>Nguyễn Thành Trung</strong><small>24127257</small></p></div></div><div class="project-cost"><span>Chi phí phần cứng dự kiến</span><strong>1.149.000 VNĐ</strong></div></article>
-              <article class="panel environment-card"><div><span class="panel-icon success"><svg><use href="#i-lock"/></svg></span><span><h3>Trạng thái bản demo</h3><p>Frontend tĩnh · localStorage</p></span></div><ul><li><span>Firebase Auth</span><b>Mô phỏng</b></li><li><span>MQTT / ESP32</span><b>Mô phỏng</b></li><li><span>Firestore</span><b>Mô phỏng</b></li><li><span>OpenAI / Telegram</span><b>Mô phỏng</b></li></ul></article>
+              <article class="panel environment-card"><div><span class="panel-icon success"><svg><use href="#i-lock"/></svg></span><span><h3>Trạng thái bản demo</h3><p>Frontend tĩnh · localStorage</p></span></div><ul><li><span>Firebase Auth</span><b>Mô phỏng</b></li><li><span>MQTT / ESP32</span><b>Mô phỏng</b></li><li><span>Firestore</span><b>Mô phỏng</b></li><li><span>AI / Telegram</span><b>Mô phỏng</b></li></ul></article>
             </aside>
           </div>
         </section>
