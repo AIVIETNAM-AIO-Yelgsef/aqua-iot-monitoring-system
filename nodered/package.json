@@ -5,7 +5,7 @@
   "description": "Node-RED Dashboard cho he thong IoT giam sat nuoc ho ca",
   "scripts": {
     "start": "node-red --userDir . --settings settings.js",
-    "check": "node --check lib/aqua-services.js && node -e \"JSON.parse(require('fs').readFileSync('flows.json', 'utf8')); console.log('Node-RED config: valid')\"",
+    "check": "node scripts/check.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
