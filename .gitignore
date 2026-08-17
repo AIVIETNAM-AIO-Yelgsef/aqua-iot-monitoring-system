@@ -10,6 +10,8 @@ nodered/*.pid
 nodered/config.local.ps1
 nodered/flows_cred.json
 **/service-account*.json
+**/*firebase-adminsdk*.json
+api sdk gì đó.txt
 Hướng dẫn sử dụng kích hoạt Codex.docx
 .env
 .env.*
