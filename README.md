@@ -62,13 +62,31 @@ Luồng điều khiển relay dùng telemetry từ ESP32 làm nguồn sự thậ
 │   ├── package.json
 │   └── settings.js               Cấu hình Node-RED và static website
 ├── website/
+│   ├── features/
+│   │   ├── monitoring.js
+│   │   ├── relay-control.js
+│   │   ├── cloud-history.js
+│   │   └── chatbot.js
 │   ├── index.html
-│   ├── app.js
+│   ├── app.js                   Điểm khởi tạo các module frontend
 │   └── styles.css
 └── README.md
 ```
 
 Các file `.config.*`, file backup và `flows_cred.json` trong `nodered/` là dữ liệu runtime do Node-RED tạo ra, không phải mã nguồn chính của ứng dụng.
+
+### Ánh xạ mã nguồn theo proposal
+
+| Yêu cầu | Phạm vi | File chính |
+| --- | --- | --- |
+| 1 - Giám sát pH và nhiệt độ | Frontend | `website/features/monitoring.js` |
+| 2 - Điều khiển máy sủi | Frontend | `website/features/relay-control.js` |
+| 3 - Cảnh báo độ đục tại thiết bị | Firmware | `firmware/aqua_iot_selfcode.ino` |
+| 4 - Lưu lịch sử trên Cloud | Backend | `nodered/flows.json`, `nodered/lib/firebase.js` |
+| 5 - Hiển thị dữ liệu Cloud | Frontend | `website/features/cloud-history.js` |
+| 6 - Thông báo Telegram | Backend | `nodered/flows.json` |
+| 8 - Chatbot truy vấn hệ thống | Frontend và backend | `website/features/chatbot.js`, `nodered/lib/openai.js` |
+| 9 - Đăng ký, đăng nhập và bảo mật | Chưa triển khai | Chưa có module Firebase Authentication trong phiên bản hiện tại |
 
 ## Phần cứng và pinout
 
