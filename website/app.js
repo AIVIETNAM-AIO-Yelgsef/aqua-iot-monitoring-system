@@ -6,8 +6,6 @@
   const api = window.AquaAPI;
   const HOUR = 60 * 60 * 1000;
   const STORAGE = {
-    accounts: "aqua_iot_demo_accounts",
-    session: "aqua_iot_demo_session",
     aerator: "aqua_iot_aerator_state",
     thresholds: "aqua_iot_thresholds",
     alerts: "aqua_iot_demo_alerts",
@@ -226,37 +224,14 @@
     setTimeout(close, timeout);
   }
 
-  async function hashPassword(password) {
-    if (window.crypto && crypto.subtle && window.TextEncoder) {
-      const data = new TextEncoder().encode(`aqua-demo:${password}`);
-      const digest = await crypto.subtle.digest("SHA-256", data);
-      return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
-    }
-    let hash = 2166136261;
-    const salted = `aqua-demo:${password}`;
-    for (let i = 0; i < salted.length; i += 1) {
-      hash ^= salted.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
-    }
-    return `fallback-${(hash >>> 0).toString(16)}`;
-  }
-
-  function getStoredSession() {
-    return storage.get(STORAGE.session, null, true) || storage.get(STORAGE.session, null, false);
-  }
-
-  function saveSession(user, remember) {
-    storage.remove(STORAGE.session, true);
-    storage.remove(STORAGE.session, false);
-    storage.set(STORAGE.session, user, !remember);
-  }
-
   function renderUser() {
     const user = state.user || { name: "Người dùng Demo", email: "demo@aquaiot.local" };
     $$('[data-user-name]').forEach(element => { element.textContent = user.name; });
     $$('[data-user-initial]').forEach(element => { element.textContent = initials(user.name); });
     $$('[data-user-first-name]').forEach(element => { element.textContent = firstName(user.name); });
-    $$('[data-account-mode]').forEach(element => { element.textContent = api.isFirebase ? "Firebase Auth" : "Tài khoản cục bộ"; });
+    $$('[data-account-mode]').forEach(element => {
+      element.textContent = api.isFirebase ? "Firebase Auth" : user.role === "demo" ? "Chế độ Demo" : "Tài khoản cục bộ";
+    });
     $("#profile-name").value = user.name;
     $("#profile-email").textContent = user.email;
     $("#profile-email-input").value = user.email;
@@ -587,8 +562,9 @@
     } catch (error) {
       if (error.status === 401 || error.status === 403) {
         state.user = null;
+        await api.signOut().catch(() => {});
         showAuth();
-        toast("Phiên đã hết hạn", "Vui lòng đăng nhập lại bằng Firebase.", "warning");
+        toast("Phiên đã hết hạn", "Vui lòng đăng nhập lại để tiếp tục.", "warning");
       } else if (force || state.dashboardLoaded) {
         state.status.deviceOnline = false;
         updateSensorDOM();

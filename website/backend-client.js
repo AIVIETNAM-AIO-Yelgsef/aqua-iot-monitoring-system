@@ -20,7 +20,19 @@
 
   function demoUser() {
     try {
-      return JSON.parse(sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY) || "null");
+      const sessionValue = sessionStorage.getItem(SESSION_KEY);
+      const localValue = localStorage.getItem(SESSION_KEY);
+      const user = JSON.parse(sessionValue || localValue || "null");
+      if (!user || typeof user !== "object") return null;
+      if (String(user.uid || user.id || "").startsWith("local-") && user.accessToken) {
+        return { ...user, remember: !sessionValue };
+      }
+      if ((user.uid === "demo" || user.id === "demo") && user.email === "demo@aquaiot.local") {
+        return { ...user, remember: !sessionValue };
+      }
+      // Old fake registrations shared uid=demo and could inherit Demo's profile.
+      clearDemo();
+      return null;
     } catch (_) {
       return null;
     }
@@ -29,7 +41,7 @@
   function rememberDemo(user, remember = true) {
     sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SESSION_KEY);
-    (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(user));
+    (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify({ ...user, remember }));
   }
 
   function clearDemo() {
@@ -43,7 +55,9 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       publicConfig = { ...publicConfig, ...(await response.json()) };
       if (publicConfig.authentication) {
-        publicConfig.authMode = publicConfig.authentication.firebaseConfigured ? "firebase" : "demo";
+        publicConfig.authMode = publicConfig.authentication.firebaseConfigured
+          ? "firebase"
+          : publicConfig.authentication.localAccountsAvailable ? "local" : "demo";
         publicConfig.allowDemoAuth = publicConfig.authentication.demoAllowed !== false;
       }
     } catch (error) {
@@ -69,7 +83,24 @@
 
   async function setupFirebase() {
     if (publicConfig.authMode !== "firebase" || !publicConfig.firebase?.apiKey) {
-      emitAuth(demoUser());
+      const storedUser = demoUser();
+      if (storedUser?.accessToken) {
+        currentUser = storedUser;
+        try {
+          const result = await request("/api/action", {
+            method: "POST",
+            body: JSON.stringify({ action: "authSession" })
+          });
+          const user = { ...storedUser, ...(result.user || {}), accessToken: storedUser.accessToken };
+          rememberDemo(user, storedUser.remember !== false);
+          emitAuth(user);
+        } catch (_) {
+          clearDemo();
+          emitAuth(null);
+        }
+      } else {
+        emitAuth(storedUser);
+      }
       return;
     }
 
@@ -92,7 +123,8 @@
   }
 
   async function token() {
-    return firebaseAuth?.currentUser ? firebaseAuth.currentUser.getIdToken() : null;
+    if (firebaseAuth?.currentUser) return firebaseAuth.currentUser.getIdToken();
+    return currentUser?.accessToken || null;
   }
 
   async function request(path, options = {}) {
@@ -140,8 +172,12 @@
         const credential = await firebaseApi.signInWithEmailAndPassword(firebaseAuth, email, password);
         return mapFirebaseUser(credential.user);
       }
-      if (!publicConfig.allowDemoAuth) throw new Error("Firebase Authentication chưa được cấu hình.");
-      const user = { id: "demo", uid: "demo", name: email.split("@")[0] || "Người dùng Demo", email, role: "demo" };
+      if (publicConfig.authMode !== "local") throw new Error("Hệ thống tài khoản chưa được cấu hình.");
+      const result = await request("/api/action", {
+        method: "POST",
+        body: JSON.stringify({ action: "authLogin", email, password })
+      });
+      const user = { ...(result.user || {}), accessToken: result.accessToken, expiresAt: result.expiresAt };
       rememberDemo(user, remember);
       emitAuth(user);
       return user;
@@ -156,8 +192,12 @@
         await this.action("profile", { profile: { name, pondName: "Hồ cá chính" } }).catch(() => {});
         return user;
       }
-      if (!publicConfig.allowDemoAuth) throw new Error("Firebase Authentication chưa được cấu hình.");
-      const user = { id: "demo", uid: "demo", name, email, role: "demo" };
+      if (publicConfig.authMode !== "local") throw new Error("Hệ thống tài khoản chưa được cấu hình.");
+      const result = await request("/api/action", {
+        method: "POST",
+        body: JSON.stringify({ action: "authRegister", name, email, password })
+      });
+      const user = { ...(result.user || {}), accessToken: result.accessToken, expiresAt: result.expiresAt };
       rememberDemo(user, true);
       emitAuth(user);
       return user;
@@ -168,9 +208,18 @@
       return firebaseApi.sendPasswordResetEmail(firebaseAuth, email);
     },
     async signOut() {
-      if (firebaseAuth) await firebaseApi.signOut(firebaseAuth);
-      clearDemo();
-      emitAuth(null);
+      try {
+        if (firebaseAuth) await firebaseApi.signOut(firebaseAuth);
+        else if (currentUser?.accessToken) {
+          await request("/api/action", {
+            method: "POST",
+            body: JSON.stringify({ action: "authLogout" })
+          });
+        }
+      } finally {
+        clearDemo();
+        emitAuth(null);
+      }
     },
     request,
     getDashboard(hours = 24, full = false) {

@@ -19,7 +19,9 @@ Hệ thống gồm web responsive, Node-RED backend, Mosquitto MQTT và firmware
 
 1. Bấm đúp `BAT_DAU_WEB.cmd`.
 2. Mở <http://localhost:1880/>.
-3. Nếu chưa cấu hình Firebase, chọn **Vào chế độ cục bộ**.
+3. Nếu chưa cấu hình Firebase, có thể **Đăng ký** tài khoản cục bộ hoặc chọn **Vào chế độ cục bộ** để dùng tài khoản Demo.
+
+Tài khoản cục bộ có UID và hồ sơ riêng. Mật khẩu được băm bằng `scrypt` ở Node-RED; trình duyệt chỉ lưu token phiên. Dữ liệu tài khoản nằm trong `nodered/data/` và đã bị Git bỏ qua. Đây là phương án dùng trong mạng LAN; khi triển khai Internet nên cấu hình Firebase Authentication và tắt cả `AQUA_ALLOW_LOCAL_AUTH` lẫn `AQUA_ALLOW_DEMO_AUTH`.
 
 Các địa chỉ:
 
@@ -47,7 +49,7 @@ Trong Firebase Console:
 3. Firestore Database → tạo database.
 4. Project settings → Service accounts → **Generate new private key**.
 5. Lưu JSON ngoài thư mục public, đặt đường dẫn tuyệt đối vào `FIREBASE_SERVICE_ACCOUNT_PATH`.
-6. Khi thử xong, đặt `AQUA_ALLOW_DEMO_AUTH=false` để buộc đăng nhập Firebase.
+6. Khi thử xong, đặt `AQUA_ALLOW_LOCAL_AUTH=false` và `AQUA_ALLOW_DEMO_AUTH=false` để buộc đăng nhập Firebase.
 
 Frontend chỉ nhận cấu hình Firebase Web công khai. Private key Admin, Telegram token và khóa AI chỉ được đọc ở backend. ID token gửi bằng header `Authorization: Bearer ...` và được Firebase Admin xác minh trước khi trả dashboard.
 
