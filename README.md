@@ -8,7 +8,7 @@ Hệ thống IoT giám sát chất lượng nước hồ cá bằng ESP32, Node-
 - Đọc tín hiệu cảm biến độ đục và module pH qua ADC có cầu chia áp.
 - Hiển thị dữ liệu và cảnh báo trên OLED.
 - Điều khiển relay máy sủi ở chế độ thủ công hoặc nhận chế độ từ MQTT.
-- Gửi dữ liệu ESP32 tới Node-RED qua Mosquitto MQTT.
+- Gửi dữ liệu ESP32 tới Node-RED qua broker công cộng EMQX.
 - Theo dõi trực tiếp, lịch sử, cảnh báo và trạng thái thiết bị trên website.
 - Hỗ trợ tùy chọn Firebase Authentication/Firestore, Telegram và OpenAI hoặc endpoint tương thích; hệ thống vẫn chạy cục bộ khi chưa cấu hình các dịch vụ này.
 
@@ -16,18 +16,18 @@ Hệ thống IoT giám sát chất lượng nước hồ cá bằng ESP32, Node-
 
 ```text
 firmware/   Mã Arduino cho ESP32
-nodered/    Node-RED, MQTT broker, API backend và script khởi động
+nodered/    Node-RED, API backend và script kết nối EMQX Public
 website/    Giao diện quản lý responsive
 *.pdf       Báo cáo và tài liệu yêu cầu dự án
 ```
 
 ## Chạy hệ thống trên Windows
 
-1. Cài Node.js và Mosquitto.
+1. Cài Node.js; máy tính cần có kết nối Internet để Node-RED dùng EMQX Public.
 2. Mở `nodered/TAO_CAU_HINH.cmd` nếu cần cấu hình Firebase, Telegram hoặc OpenAI.
 3. Chạy `nodered/BAT_DAU_WEB.cmd`.
 4. Mở `http://localhost:1880/`.
-5. Chỉnh Wi-Fi và địa chỉ MQTT trong firmware trước khi nạp cho ESP32.
+5. Điền Wi-Fi trong `aqua_secrets.h`; broker và topic công cộng đã được cấu hình sẵn.
 
 Hướng dẫn chi tiết nằm tại [`nodered/README.md`](nodered/README.md), [`website/README.md`](website/README.md) và [`firmware/README.md`](firmware/README.md).
 

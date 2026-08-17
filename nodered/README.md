@@ -1,6 +1,6 @@
 # Aqua IoT — web quản lý theo proposal nhóm 18
 
-Hệ thống gồm web responsive, Node-RED backend, Mosquitto MQTT và firmware ESP32. Khi chưa nhập khóa Cloud, luồng ESP32 → MQTT → web → relay vẫn hoạt động bằng kho JSON cục bộ. Firebase, Telegram và nhà cung cấp AI tự bật khi có cấu hình hợp lệ.
+Hệ thống gồm web responsive, Node-RED backend, EMQX Public MQTT và firmware ESP32. Máy tính không còn chạy broker; ESP32 và Node-RED cùng kết nối Internet tới EMQX. Firebase, Telegram và nhà cung cấp AI tự bật khi có cấu hình hợp lệ.
 
 ## Chức năng đã triển khai
 
@@ -28,9 +28,9 @@ Các địa chỉ:
 - Web quản lý: <http://localhost:1880/>
 - Node-RED Editor: <http://localhost:1880/red>
 - Dashboard kỹ thuật: <http://localhost:1880/dashboard/aquarium>
-- MQTT Broker: `IP_MAY_TIN:1884`
+- MQTT Broker: `broker.emqx.io:1883`
 
-Điện thoại cùng Wi‑Fi mở `http://IP_MAY_TIN:1880/`. Xem IPv4 bằng `ipconfig`; cho phép Node.js và Mosquitto qua Windows Firewall ở mạng **Private** nếu cần.
+Điện thoại cùng Wi‑Fi mở `http://IP_MAY_TIN:1880/`. Xem IPv4 bằng `ipconfig`; chỉ cần cho phép Node.js qua Windows Firewall ở mạng **Private**. ESP32 không còn phụ thuộc IP của máy tính để gửi MQTT.
 
 ## Cấu hình Firebase, Telegram và AI
 
@@ -92,17 +92,21 @@ Nếu thiếu key, key sai, hết quota, timeout hoặc nhà cung cấp AI tạm
 
 | Topic | Chiều | Nội dung |
 |---|---|---|
-| `aquarium/data` | ESP32 → Node-RED | nhiệt độ, RAW/điện áp pH và độ đục, cảnh báo độ đục, relay, mode, RSSI |
-| `aquarium/status` | ESP32 → Node-RED | `online`/`offline`, retained/LWT |
-| `aquarium/command` | Node-RED → ESP32 | `ON`, `OFF`, `MODE`; `MANUAL`/`AUTO` |
+Topic root: `aqua-iot/nhom18-24127175-24127257/esp32-aqua-01`
 
-Mosquitto dùng cổng 1884 và anonymous chỉ để demo trong LAN. Không port-forward cổng 1880/1884 ra Internet.
+| Topic con | ESP32/Node-RED | Nội dung |
+|---|---|---|
+| `/data` | ESP32 → Node-RED | nhiệt độ, RAW/điện áp pH và độ đục, cảnh báo độ đục, relay, mode, RSSI |
+| `/status` | ESP32 → Node-RED | `online`/`offline`, retained/LWT |
+| `/command` | Node-RED → ESP32 | `ON`, `OFF`, `MODE`; `MANUAL`/`AUTO` |
+
+EMQX Public dùng `broker.emqx.io:1883`; `BAT_DAU_WEB.cmd` chỉ khởi chạy Node-RED, không chạy Mosquitto. Broker này không yêu cầu tài khoản và chỉ dành cho học tập/thử nghiệm: message có thể bị người khác đọc hoặc gửi giả. Không truyền mật khẩu/dữ liệu nhạy cảm và không nối relay với tải nguy hiểm. Khi triển khai thật, chuyển sang broker Cloud riêng có TLS và tài khoản.
 
 ## Nạp firmware ESP32
 
 1. Cài `PubSubClient`, `OneWire`, `DallasTemperature`, `Adafruit GFX`, `Adafruit SSD1306`.
 2. Mở `firmware/aqua_iot_nodered/aqua_iot_nodered.ino`.
-3. Điền `WIFI_SSID`, `WIFI_PASSWORD` và sửa `MQTT_HOST` thành IPv4 máy tính.
+3. Điền `AQUA_WIFI_SSID` và `AQUA_WIFI_PASSWORD`; giữ broker `broker.emqx.io`, cổng `1883` và topic root giống Node-RED.
 4. Chọn **ESP32 Dev Module**, đúng COM, rồi Upload.
 5. Serial Monitor 115200 baud để xem kết nối và telemetry.
 
