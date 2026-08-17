@@ -104,7 +104,7 @@
     const contentType = response.headers.get("content-type") || "";
     const data = contentType.includes("application/json") ? await response.json() : await response.text();
     if (!response.ok) {
-      const error = new Error(data?.error || data?.message || `HTTP ${response.status}`);
+      const error = new Error(data?.message || data?.error || `HTTP ${response.status}`);
       error.status = response.status;
       error.data = data;
       throw error;

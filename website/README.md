@@ -9,6 +9,7 @@ Giao diện web thật của hệ thống giám sát nước hồ cá, được 
 - Lịch sử dữ liệu và xuất CSV
 - Thiết bị và điều khiển relay
 - Cảnh báo và cấu hình ngưỡng
+- Liên kết Telegram theo từng tài khoản bằng deep-link và nút Start
 - Trợ lý AI
 - Cài đặt, hồ sơ và xác thực
 

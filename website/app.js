@@ -183,6 +183,8 @@
     thresholds: savedThresholds && validThresholdObject(savedThresholds) ? savedThresholds : { tempMin: 24, tempMax: 30, phMin: 6.5, phMax: 8 },
     alerts: [],
     telegram: false,
+    telegramConnection: { configured: false, connected: false, pending: false, account: null },
+    telegramBusy: false,
     status: { mqttConnected: false, deviceOnline: false, storage: "local" },
     features: {},
     profile: null,
@@ -492,6 +494,7 @@
   }
 
   function applyDashboard(data = {}) {
+    const telegramWasPending = Boolean(state.telegramConnection?.pending && !state.telegramConnection?.connected);
     const latest = data.latest ? normalizeRecord(data.latest) : null;
     if (latest) {
       state.temperature = latest.temperature;
@@ -531,6 +534,9 @@
     };
     state.features = { ...state.features, ...(data.features || {}) };
     state.profile = data.profile || state.profile;
+    if (data.telegram && typeof data.telegram === "object") {
+      state.telegramConnection = { ...state.telegramConnection, ...data.telegram };
+    }
     state.dashboardLoaded = true;
     if (state.profile?.name && state.user) {
       state.user.name = state.profile.name;
@@ -543,6 +549,9 @@
     updateSensorDOM();
     renderIntegrationStatus();
     renderActivePage();
+    if (telegramWasPending && state.telegramConnection.connected) {
+      toast("Đã kết nối Telegram", "Telegram ID đã được lưu an toàn tại backend. Tài khoản này sẽ nhận cảnh báo của hồ cá.");
+    }
   }
 
   async function refreshDashboard(force = false) {
@@ -663,7 +672,7 @@
     container.innerHTML = state.alerts.map(alert => `
       <div class="alert-history-item ${alert.type}">
         <span>${icon(alertIcon(alert.type))}</span>
-        <div><h4>${alert.title}</h4><p>${alert.message}</p><span class="alert-meta"><span class="telegram-delivery">${icon("send")} ${alert.delivery || (alert.telegramSent ? "Đã gửi Telegram" : "Chưa gửi Telegram")}</span><span>· ${state.status.storage === "firestore" ? "Firestore" : "Node-RED cục bộ"}</span></span></div>
+        <div><h4>${alert.title}</h4><p>${alert.message}</p><span class="alert-meta"><span class="telegram-delivery">${icon("send")} ${alert.delivery || (alert.telegramSent || alert.telegram?.sent ? `Đã gửi Telegram${alert.telegram?.delivered ? ` (${alert.telegram.delivered})` : ""}` : "Chưa gửi Telegram")}</span><span>· ${state.status.storage === "firestore" ? "Firestore" : "Node-RED cục bộ"}</span></span></div>
         <time>${relativeTime(Number(alert.timestamp))}</time>
       </div>`).join("");
   }
@@ -687,7 +696,122 @@
     renderAlertHistory();
     renderNotifications();
     $("#telegram-toggle").checked = state.telegram;
-    $("#telegram-status-text").textContent = state.telegram ? (state.features.telegram ? "Đang bật" : "Bật · thiếu cấu hình Bot") : "Đang tắt";
+    renderTelegramConnection();
+  }
+
+  function renderTelegramConnection() {
+    const connection = state.telegramConnection || {};
+    const configured = Boolean(state.features.telegram && connection.configured !== false);
+    const account = connection.account || {};
+    const status = $("#telegram-account");
+    const statusText = $("span", status);
+    const statusTitle = $("#telegram-status-text");
+    const statusDetail = $("#telegram-status-detail");
+    const description = $("#telegram-link-description");
+    const connectButton = $("#telegram-connect");
+    const disconnectButton = $("#telegram-disconnect");
+    const toggle = $("#telegram-toggle");
+
+    status.classList.remove("connected", "pending", "error");
+    connectButton.disabled = state.telegramBusy || !configured;
+    disconnectButton.disabled = state.telegramBusy;
+    toggle.disabled = !configured || !connection.connected;
+
+    if (!configured) {
+      status.classList.add("error");
+      statusText.textContent = "Bot chưa được cấu hình";
+      statusTitle.textContent = "Thiếu Bot token";
+      statusDetail.textContent = "Kiểm tra TELEGRAM_BOT_TOKEN tại backend";
+      description.textContent = "Cần BotFather token hợp lệ và khởi động lại Node-RED trước khi liên kết.";
+      connectButton.textContent = "Telegram chưa sẵn sàng";
+      disconnectButton.classList.add("hidden");
+      return;
+    }
+
+    if (connection.connected) {
+      const identity = account.username ? `@${account.username}` : account.displayName || "Tài khoản Telegram";
+      status.classList.add("connected");
+      statusText.textContent = `${identity}${account.idHint ? ` · ID ${account.idHint}` : ""}`;
+      statusTitle.textContent = state.telegram ? "Đã liên kết · đang nhận" : "Đã liên kết · đang tắt";
+      statusDetail.textContent = "Telegram ID chỉ lưu tại backend";
+      description.textContent = "Tài khoản Telegram này đã xác nhận bằng nút Start và có thể nhận cảnh báo riêng.";
+      connectButton.classList.add("hidden");
+      disconnectButton.classList.remove("hidden");
+      return;
+    }
+
+    connectButton.classList.remove("hidden");
+    disconnectButton.classList.add("hidden");
+    if (connection.pending) {
+      status.classList.add("pending");
+      statusText.textContent = "Đang chờ bạn bấm Start trong Telegram";
+      statusTitle.textContent = "Chờ xác nhận";
+      statusDetail.textContent = "Liên kết một lần sẽ tự hết hạn";
+      description.textContent = "Telegram đã được mở. Hãy bấm Start trong cuộc trò chuyện với bot để hoàn tất.";
+      connectButton.textContent = state.telegramBusy ? "Đang tạo liên kết…" : "Mở lại Telegram";
+    } else {
+      statusText.textContent = "Chưa liên kết tài khoản";
+      statusTitle.textContent = state.telegram ? "Đã bật · chưa có người nhận" : "Đang tắt";
+      statusDetail.textContent = "Liên kết để backend ghi nhận Telegram ID";
+      description.textContent = "Nhấn nút, mở đúng bot rồi bấm Start. Website không thể tự lấy ID nếu chưa có xác nhận này.";
+      connectButton.textContent = state.telegramBusy ? "Đang tạo liên kết…" : "Nhận thông báo từ Telegram";
+    }
+  }
+
+  function safeTelegramDeepLink(value) {
+    try {
+      const url = new URL(String(value || ""));
+      if (url.protocol !== "https:" || !["t.me", "telegram.me"].includes(url.hostname.toLowerCase())) return null;
+      return url.href;
+    } catch (_) { return null; }
+  }
+
+  async function connectTelegram() {
+    if (state.telegramBusy) return;
+    state.telegramBusy = true;
+    renderTelegramConnection();
+    const popup = window.open("about:blank", "_blank");
+    if (popup) {
+      popup.document.title = "Đang mở Telegram";
+      popup.document.body.textContent = "Đang tạo liên kết Telegram an toàn…";
+    }
+    try {
+      const result = await api.action("telegramConnect", {});
+      const connection = result.telegram || {};
+      const deepLink = safeTelegramDeepLink(connection.deepLink);
+      if (!deepLink) throw new Error("Backend không trả về liên kết Telegram hợp lệ.");
+      state.telegramConnection = { ...state.telegramConnection, ...connection, pending: true };
+      if (popup && !popup.closed) {
+        popup.location.replace(deepLink);
+        popup.opener = null;
+      } else {
+        window.open(deepLink, "_blank", "noopener,noreferrer");
+      }
+      toast("Đã mở Telegram", "Hãy bấm Start trong bot. Website sẽ tự cập nhật khi Telegram ID được xác nhận.", "info", 6000);
+    } catch (error) {
+      if (popup && !popup.closed) popup.close();
+      toast("Không tạo được liên kết", error.message, "warning", 5000);
+    } finally {
+      state.telegramBusy = false;
+      renderTelegramConnection();
+      setTimeout(() => refreshDashboard(true), 1200);
+    }
+  }
+
+  async function disconnectTelegram() {
+    if (state.telegramBusy || !confirm("Hủy liên kết Telegram của tài khoản này?")) return;
+    state.telegramBusy = true;
+    renderTelegramConnection();
+    try {
+      const result = await api.action("telegramDisconnect", {});
+      state.telegramConnection = result.telegram || { configured: true, connected: false, pending: false };
+      toast("Đã hủy liên kết", "Telegram ID đã được gỡ khỏi tài khoản web.", "info");
+    } catch (error) {
+      toast("Không hủy được liên kết", error.message, "warning");
+    } finally {
+      state.telegramBusy = false;
+      renderTelegramConnection();
+    }
   }
 
   function persistAlerts() {
@@ -714,6 +838,8 @@
 
   function initAlerts() {
     $("#simulate-alert").addEventListener("click", simulateAlert);
+    $("#telegram-connect").addEventListener("click", connectTelegram);
+    $("#telegram-disconnect").addEventListener("click", disconnectTelegram);
     $("#clear-demo-alerts").addEventListener("click", () => {
       state.alerts = [];
       persistAlerts();

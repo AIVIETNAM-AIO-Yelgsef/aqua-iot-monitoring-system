@@ -54,9 +54,13 @@ Frontend chỉ nhận cấu hình Firebase Web công khai. Private key Admin, Te
 ### Telegram
 
 1. Nhắn `@BotFather`, tạo bot và lấy token.
-2. Gửi một tin nhắn cho bot.
-3. Lấy `chat_id`, điền `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID`.
-4. Trên web, bật Telegram và dùng **Gửi cảnh báo thử**.
+2. Điền `TELEGRAM_BOT_TOKEN` vào `config.local.ps1` rồi khởi động lại hệ thống. Không cần tự tìm `chat_id`.
+3. Trên trang **Cảnh báo**, nhấn **Nhận thông báo từ Telegram**. Website tạo deep-link một lần và mở đúng bot.
+4. Người dùng phải bấm **Start** trong Telegram. Backend poll Bot API, xác nhận token một lần, ghi `chat_id` vào kho backend/Firestore và liên kết với UID đang đăng nhập.
+5. Bật công tắc Telegram rồi dùng **Gửi cảnh báo thử**. Cảnh báo thử chỉ gửi tới Telegram của người đang đăng nhập; cảnh báo hệ thống gửi tới mọi tài khoản đã chủ động liên kết.
+6. Có thể nhấn **Hủy liên kết** để xóa người nhận. `TELEGRAM_CHAT_ID` chỉ còn là tùy chọn tương thích cách cấu hình một người nhận cố định trước đây.
+
+Telegram không cho website tự đọc ID chỉ bằng cách mở ứng dụng. Việc người dùng bấm **Start** là bước đồng ý bắt buộc. Token deep-link hết hạn sau 10 phút, chỉ dùng một lần; raw Telegram ID và Bot token không được trả về frontend.
 
 ### OpenAI
 

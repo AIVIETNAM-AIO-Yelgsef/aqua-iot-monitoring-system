@@ -318,7 +318,7 @@
             <div><span class="section-kicker">YC6 · CẢNH BÁO TELEGRAM</span><h2>Cảnh báo &amp; ngưỡng</h2><p>Cấu hình ngưỡng thật để Node-RED theo dõi pH và nhiệt độ.</p></div>
             <button class="secondary-button" id="simulate-alert" type="button"><svg><use href="#i-alert"/></svg> Gửi cảnh báo thử</button>
           </div>
-          <div class="alert-stats-grid"><article><span class="alert-stat-icon success"><svg><use href="#i-check"/></svg></span><div><span>Trạng thái hiện tại</span><strong>Đang theo dõi</strong><small>Theo ngưỡng cấu hình</small></div></article><article><span class="alert-stat-icon warn"><svg><use href="#i-bell"/></svg></span><div><span>Lịch sử</span><strong id="alert-total">0 cảnh báo</strong><small>Firestore / Node-RED</small></div></article><article><span class="alert-stat-icon telegram"><svg><use href="#i-send"/></svg></span><div><span>Telegram Bot</span><strong id="telegram-status-text">Đang kiểm tra</strong><small>Token chỉ lưu tại backend</small></div><label class="toggle"><input id="telegram-toggle" type="checkbox"><span></span></label></article></div>
+          <div class="alert-stats-grid"><article><span class="alert-stat-icon success"><svg><use href="#i-check"/></svg></span><div><span>Trạng thái hiện tại</span><strong>Đang theo dõi</strong><small>Theo ngưỡng cấu hình</small></div></article><article><span class="alert-stat-icon warn"><svg><use href="#i-bell"/></svg></span><div><span>Lịch sử</span><strong id="alert-total">0 cảnh báo</strong><small>Firestore / Node-RED</small></div></article><article><span class="alert-stat-icon telegram"><svg><use href="#i-send"/></svg></span><div><span>Telegram Bot</span><strong id="telegram-status-text">Đang kiểm tra</strong><small id="telegram-status-detail">Token chỉ lưu tại backend</small></div><label class="toggle" title="Bật hoặc tắt gửi cảnh báo"><input id="telegram-toggle" type="checkbox"><span></span></label></article></div>
           <div class="alerts-layout">
             <article class="panel threshold-panel">
               <div class="panel-heading compact"><div><span class="panel-icon"><svg><use href="#i-sliders"/></svg></span><span><h3>Cấu hình ngưỡng</h3><p>Backend dùng trực tiếp để phát hiện bất thường.</p></span></div><span class="demo-outline-badge">LIVE</span></div>
@@ -334,7 +334,18 @@
               <div class="alert-history-list" id="alert-history-list"></div>
             </article>
           </div>
-          <article class="panel telegram-flow-card"><div class="telegram-brand"><svg><use href="#i-send"/></svg><span><strong>Luồng Telegram Bot API</strong><small>YC6 · Gửi thông báo nhanh đến điện thoại</small></span></div><div class="telegram-flow"><span>Dữ liệu pH / nhiệt độ</span><svg><use href="#i-chevron"/></svg><span>Backend kiểm tra ngưỡng</span><svg><use href="#i-chevron"/></svg><span>Telegram Bot API</span><svg><use href="#i-chevron"/></svg><span>Điện thoại người dùng</span></div><span class="integration-label">BACKEND LIVE</span></article>
+          <article class="panel telegram-connect-card">
+            <div class="telegram-connect-main">
+              <span class="telegram-connect-icon"><svg><use href="#i-send"/></svg></span>
+              <span><strong>Nhận cảnh báo qua Telegram</strong><small id="telegram-link-description">Liên kết tài khoản Telegram để nhận cảnh báo của hồ cá này.</small></span>
+            </div>
+            <div class="telegram-account" id="telegram-account" aria-live="polite"><i></i><span>Chưa liên kết tài khoản</span></div>
+            <div class="telegram-connect-actions">
+              <button class="telegram-button" id="telegram-connect" type="button"><svg><use href="#i-send"/></svg> Nhận thông báo từ Telegram</button>
+              <button class="secondary-button danger-button hidden" id="telegram-disconnect" type="button">Hủy liên kết</button>
+            </div>
+          </article>
+          <article class="panel telegram-flow-card"><div class="telegram-brand"><svg><use href="#i-send"/></svg><span><strong>Luồng xác nhận an toàn</strong><small>Website tạo liên kết một lần; Telegram ID chỉ lưu tại backend</small></span></div><div class="telegram-flow"><span>Nhấn nút trên web</span><svg><use href="#i-chevron"/></svg><span>Mở đúng bot</span><svg><use href="#i-chevron"/></svg><span>Người dùng bấm Start</span><svg><use href="#i-chevron"/></svg><span>Nhận cảnh báo riêng</span></div><span class="integration-label">OPT-IN</span></article>
         </section>
 
         <section class="page-view assistant-view" data-view="assistant">

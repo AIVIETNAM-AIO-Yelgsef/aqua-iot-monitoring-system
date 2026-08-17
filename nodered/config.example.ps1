@@ -14,9 +14,13 @@ $env:FIREBASE_SERVICE_ACCOUNT_PATH = ""
 # Thay cho PATH, co the dat ca JSON tren mot dong trong bien sau:
 $env:FIREBASE_SERVICE_ACCOUNT_JSON = ""
 
-# Telegram BotFather + chat_id nguoi nhan
+# Telegram BotFather. Chi TELEGRAM_BOT_TOKEN la bat buoc cho nut lien ket tren web.
 $env:TELEGRAM_BOT_TOKEN = ""
+# Tuy chon tuong thich cach cu: gui them den mot chat ID co dinh.
 $env:TELEGRAM_CHAT_ID = ""
+# Backend poll Bot API trong LAN de nhan /start va ghi chat ID theo tung user.
+$env:TELEGRAM_POLL_INTERVAL_MS = "3000"
+$env:TELEGRAM_LINK_TTL_MS = "600000"
 
 # OpenAI API: khoa chi nam o backend Node-RED, khong dua vao website.
 $env:OPENAI_API_KEY = ""
