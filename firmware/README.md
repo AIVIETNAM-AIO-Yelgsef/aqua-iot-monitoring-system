@@ -62,14 +62,14 @@ Sau đó chỉ sửa các giá trị trong `aqua_secrets.h`:
 ```cpp
 #define AQUA_WIFI_SSID "AQUA_IOT"
 #define AQUA_WIFI_PASSWORD "MAT_KHAU_WIFI_CUA_BAN"
-#define AQUA_MQTT_HOST "broker.emqx.io"
+#define AQUA_MQTT_HOST "broker.hivemq.com"
 #define AQUA_MQTT_PORT 1883
 #define AQUA_MQTT_TOPIC_ROOT "aqua-iot/nhom18-24127175-24127257/esp32-aqua-01"
 ```
 
 `aqua_secrets.h` đã được `.gitignore` loại trừ nên mật khẩu Wi-Fi không bị đưa lên Git. Không sửa hoặc ghi mật khẩu thật vào `aqua_secrets.example.h`.
 
-ESP32 và Node-RED cùng kết nối tới `broker.emqx.io:1883`, vì vậy không cần nhập IPv4 máy tính và không cần chạy Mosquitto cục bộ. Giữ `AQUA_MQTT_TOPIC_ROOT` giống hệt cấu hình Node-RED.
+ESP32 và Node-RED cùng kết nối tới `broker.hivemq.com:1883`, vì vậy không cần nhập IPv4 máy tính và không cần chạy Mosquitto cục bộ. Giữ `AQUA_MQTT_TOPIC_ROOT` giống hệt cấu hình Node-RED. ESP32 tự tạo Client ID riêng từ MAC; không dùng Client ID `nodered-hcmus-aqua-18` của Node-RED.
 
 ## 4. Nạp và kiểm tra
 
@@ -102,7 +102,7 @@ Topic root: `aqua-iot/nhom18-24127175-24127257/esp32-aqua-01`
 | `/status` | `online` hoặc LWT `offline`, retained |
 | `/command` | JSON `ON`, `OFF`, `MODE` từ website |
 
-EMQX Public là broker mở phục vụ thử nghiệm. Không gửi dữ liệu nhạy cảm và không dùng nó để điều khiển tải điện nguy hiểm. Bản triển khai thật phải dùng broker riêng có TLS và xác thực.
+HiveMQ Public là broker mở phục vụ thử nghiệm. Không gửi dữ liệu nhạy cảm và không dùng nó để điều khiển tải điện nguy hiểm. Bản triển khai thật phải dùng broker riêng có TLS và xác thực.
 
 Firmware lọc lệnh theo `deviceId`, giữ relay tắt khi khởi động và gửi telemetry ngay sau mỗi lệnh để website cập nhật trạng thái thật.
 

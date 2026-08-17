@@ -12,6 +12,16 @@ if (Test-Path -LiteralPath $localConfig) {
     . $localConfig
 }
 
+if ([string]::IsNullOrWhiteSpace($env:MQTT_BROKER_HOST)) {
+    $env:MQTT_BROKER_HOST = "broker.hivemq.com"
+}
+if ([string]::IsNullOrWhiteSpace($env:MQTT_BROKER_PORT)) {
+    $env:MQTT_BROKER_PORT = "1883"
+}
+if ([string]::IsNullOrWhiteSpace($env:MQTT_CLIENT_ID)) {
+    $env:MQTT_CLIENT_ID = "nodered-hcmus-aqua-18"
+}
+
 $nodeRedOut = Join-Path $runtimeDir "node-red.log"
 $nodeRedErr = Join-Path $runtimeDir "node-red-error.log"
 
@@ -43,6 +53,7 @@ Write-Host "Aqua IoT da khoi dong."
 Write-Host "Aqua Web        : http://localhost:1880/"
 Write-Host "Node-RED Editor : http://localhost:1880/red"
 Write-Host "Dashboard ky thuat: http://localhost:1880/dashboard/aquarium"
-Write-Host "MQTT Broker     : broker.emqx.io:1883 (public demo broker)"
+Write-Host "MQTT Broker     : $($env:MQTT_BROKER_HOST):$($env:MQTT_BROKER_PORT) (public demo broker)"
+Write-Host "MQTT Client ID  : $($env:MQTT_CLIENT_ID)"
 Write-Host "MQTT Topic root : aqua-iot/nhom18-24127175-24127257/esp32-aqua-01"
 Write-Host "Log             : $runtimeDir"

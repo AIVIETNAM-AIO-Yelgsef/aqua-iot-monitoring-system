@@ -400,7 +400,7 @@
     $$('[data-ph]').forEach(element => { element.textContent = finite(state.ph) === null ? "--" : sensorText(state.ph, 2).replace(/0$/, ""); });
     $$('[data-turbidity-raw]').forEach(element => { element.textContent = finite(state.turbidityRaw) === null ? "--" : Math.round(state.turbidityRaw); });
     const payload = state.latestPayload || {
-      message: "Đang chờ ESP32 publish lên EMQX Public",
+      message: "Đang chờ ESP32 publish lên HiveMQ Public",
       temperature: null,
       ph: null
     };

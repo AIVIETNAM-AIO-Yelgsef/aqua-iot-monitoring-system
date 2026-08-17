@@ -16,4 +16,4 @@ if (Test-Path -LiteralPath $pidFile) {
     Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "Da dung Node-RED cua Aqua IoT. EMQX la broker public, khong chay tren may nay."
+Write-Host "Da dung Node-RED cua Aqua IoT. HiveMQ la broker public, khong chay tren may nay."

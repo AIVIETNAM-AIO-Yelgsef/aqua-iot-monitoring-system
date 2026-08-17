@@ -1,6 +1,6 @@
 # Aqua IoT — web quản lý theo proposal nhóm 18
 
-Hệ thống gồm web responsive, Node-RED backend, EMQX Public MQTT và firmware ESP32. Máy tính không còn chạy broker; ESP32 và Node-RED cùng kết nối Internet tới EMQX. Firebase, Telegram và nhà cung cấp AI tự bật khi có cấu hình hợp lệ.
+Hệ thống gồm web responsive, Node-RED backend, HiveMQ Public MQTT và firmware ESP32. Máy tính không còn chạy broker; ESP32 và Node-RED cùng kết nối Internet tới HiveMQ. Firebase, Telegram và nhà cung cấp AI tự bật khi có cấu hình hợp lệ.
 
 ## Chức năng đã triển khai
 
@@ -28,7 +28,8 @@ Các địa chỉ:
 - Web quản lý: <http://localhost:1880/>
 - Node-RED Editor: <http://localhost:1880/red>
 - Dashboard kỹ thuật: <http://localhost:1880/dashboard/aquarium>
-- MQTT Broker: `broker.emqx.io:1883`
+- MQTT Broker: `broker.hivemq.com:1883`
+- Node-RED Client ID: `nodered-hcmus-aqua-18`
 
 Điện thoại cùng Wi‑Fi mở `http://IP_MAY_TIN:1880/`. Xem IPv4 bằng `ipconfig`; chỉ cần cho phép Node.js qua Windows Firewall ở mạng **Private**. ESP32 không còn phụ thuộc IP của máy tính để gửi MQTT.
 
@@ -100,13 +101,13 @@ Topic root: `aqua-iot/nhom18-24127175-24127257/esp32-aqua-01`
 | `/status` | ESP32 → Node-RED | `online`/`offline`, retained/LWT |
 | `/command` | Node-RED → ESP32 | `ON`, `OFF`, `MODE`; `MANUAL`/`AUTO` |
 
-EMQX Public dùng `broker.emqx.io:1883`; `BAT_DAU_WEB.cmd` chỉ khởi chạy Node-RED, không chạy Mosquitto. Broker này không yêu cầu tài khoản và chỉ dành cho học tập/thử nghiệm: message có thể bị người khác đọc hoặc gửi giả. Không truyền mật khẩu/dữ liệu nhạy cảm và không nối relay với tải nguy hiểm. Khi triển khai thật, chuyển sang broker Cloud riêng có TLS và tài khoản.
+HiveMQ Public dùng `broker.hivemq.com:1883`; `BAT_DAU_WEB.cmd` chỉ khởi chạy Node-RED, không chạy Mosquitto. Broker này không yêu cầu tài khoản và chỉ dành cho học tập/thử nghiệm: message có thể bị người khác đọc hoặc gửi giả. Không truyền mật khẩu/dữ liệu nhạy cảm và không nối relay với tải nguy hiểm. Khi triển khai thật, chuyển sang broker Cloud riêng có TLS và tài khoản.
 
 ## Nạp firmware ESP32
 
 1. Cài `PubSubClient`, `OneWire`, `DallasTemperature`, `Adafruit GFX`, `Adafruit SSD1306`.
 2. Mở `firmware/aqua_iot_nodered/aqua_iot_nodered.ino`.
-3. Điền `AQUA_WIFI_SSID` và `AQUA_WIFI_PASSWORD`; giữ broker `broker.emqx.io`, cổng `1883` và topic root giống Node-RED.
+3. Điền `AQUA_WIFI_SSID` và `AQUA_WIFI_PASSWORD`; giữ broker `broker.hivemq.com`, cổng `1883` và topic root giống Node-RED.
 4. Chọn **ESP32 Dev Module**, đúng COM, rồi Upload.
 5. Serial Monitor 115200 baud để xem kết nối và telemetry.
 

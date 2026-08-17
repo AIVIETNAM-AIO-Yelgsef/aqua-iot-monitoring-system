@@ -1,6 +1,11 @@
 # Sao chep tep nay thanh config.local.ps1, sau do dien cac gia tri cua ban.
 # Khong gui config.local.ps1 hoac service-account.json len GitHub.
 
+# Public MQTT broker used by Node-RED
+$env:MQTT_BROKER_HOST = "broker.hivemq.com"
+$env:MQTT_BROKER_PORT = "1883"
+$env:MQTT_CLIENT_ID = "nodered-hcmus-aqua-18"
+
 # Firebase Web App (Project settings -> Your apps -> Web app)
 $env:FIREBASE_API_KEY = ""
 $env:FIREBASE_AUTH_DOMAIN = ""
