@@ -412,7 +412,7 @@
     $$('[data-ph]').forEach(element => { element.textContent = finite(state.ph) === null ? "--" : sensorText(state.ph, 2).replace(/0$/, ""); });
     $$('[data-turbidity-raw]').forEach(element => { element.textContent = finite(state.turbidityRaw) === null ? "--" : Math.round(state.turbidityRaw); });
     const payload = state.latestPayload || {
-      message: "Đang chờ ESP32 publish lên aquarium/data",
+      message: "Đang chờ ESP32 publish telemetry qua MQTT",
       temperature: null,
       ph: null
     };
@@ -795,7 +795,7 @@
     const pageRecords = all.slice(start, start + perPage);
     $("#history-table-body").innerHTML = pageRecords.length ? pageRecords.map(record => {
       const status = historyStatus(record);
-      return `<tr><td><strong>${formatTableDate(record.timestamp)}</strong></td><td>${sensorText(record.temperature, 1)} °C</td><td>${finite(record.ph) === null ? "Chưa hiệu chuẩn" : sensorText(record.ph, 2)}</td><td>${record.deviceId || "esp32-aqua-01"} <small>· ${state.status.storage === "firestore" ? "cloud" : "local"}</small></td><td><span class="table-status ${status.className}"><i></i>${status.label}</span></td></tr>`;
+      return `<tr><td><strong>${formatTableDate(record.timestamp)}</strong></td><td>${sensorText(record.temperature, 1)} °C</td><td>${finite(record.ph) === null ? "Chưa hiệu chuẩn" : sensorText(record.ph, 2)}</td><td>${record.deviceId || "hcmus-aqua-18"} <small>· ${state.status.storage === "firestore" ? "cloud" : "local"}</small></td><td><span class="table-status ${status.className}"><i></i>${status.label}</span></td></tr>`;
     }).join("") : `<tr><td colspan="5">Không có bản ghi phù hợp.</td></tr>`;
     const shownEnd = Math.min(start + pageRecords.length, all.length);
     $("#pagination-info").textContent = all.length ? `${start + 1}–${shownEnd} trong ${all.length} bản ghi` : "0 bản ghi";
@@ -828,7 +828,7 @@
   function exportCsv() {
     const records = selectedHistory();
     const lines = ["Thoi gian,Nhiet do (C),Do pH,Nguon"];
-    records.forEach(record => lines.push(`"${formatTableDate(record.timestamp)}",${finite(record.temperature) === null ? "" : record.temperature.toFixed(1)},${finite(record.ph) === null ? "" : record.ph.toFixed(2)},${record.deviceId || "esp32-aqua-01"}`));
+    records.forEach(record => lines.push(`"${formatTableDate(record.timestamp)}",${finite(record.temperature) === null ? "" : record.temperature.toFixed(1)},${finite(record.ph) === null ? "" : record.ph.toFixed(2)},${record.deviceId || "hcmus-aqua-18"}`));
     const blob = new Blob(["\ufeff", lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");

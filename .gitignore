@@ -7,7 +7,6 @@ nodered/*.log
 nodered/*.pid
 
 # Local configuration and credentials
-nodered/config.local.ps1
 nodered/flows_cred.json
 **/service-account*.json
 .env

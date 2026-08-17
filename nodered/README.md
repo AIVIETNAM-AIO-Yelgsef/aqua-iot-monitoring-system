@@ -1,6 +1,6 @@
 # Aqua IoT — web quản lý theo proposal nhóm 18
 
-Hệ thống gồm web responsive, Node-RED backend, Mosquitto MQTT và firmware ESP32. Khi chưa nhập khóa Cloud, luồng ESP32 → MQTT → web → relay vẫn hoạt động bằng kho JSON cục bộ. Firebase, Telegram và OpenAI tự bật khi có cấu hình hợp lệ.
+Hệ thống gồm web responsive, Node-RED backend, HiveMQ Public và firmware ESP32. Khi chưa nhập khóa Cloud, luồng ESP32 → MQTT → web → relay vẫn hoạt động bằng kho JSON cục bộ. Firebase, Telegram và OpenAI tự bật khi có cấu hình hợp lệ.
 
 ## Chức năng đã triển khai
 
@@ -17,26 +17,33 @@ Hệ thống gồm web responsive, Node-RED backend, Mosquitto MQTT và firmware
 
 ## Chạy nhanh
 
-1. Bấm đúp `BAT_DAU_WEB.cmd`.
-2. Mở <http://localhost:1880/>.
-3. Nếu chưa cấu hình Firebase, chọn **Vào chế độ cục bộ**.
+Từ root repository:
+
+```bash
+cp .env.example .env
+cd nodered
+npm install
+npm start
+```
+
+Mở <http://localhost:1880/>. Nếu chưa cấu hình Firebase, chọn **Vào chế độ cục bộ**. Nhấn `Ctrl+C` tại terminal để dừng Node-RED.
 
 Các địa chỉ:
 
 - Web quản lý: <http://localhost:1880/>
 - Node-RED Editor: <http://localhost:1880/red>
 - Dashboard kỹ thuật: <http://localhost:1880/dashboard/aquarium>
-- MQTT Broker: `IP_MAY_TIN:1884`
+- MQTT Broker: `broker.hivemq.com:1883`
 
-Điện thoại cùng Wi‑Fi mở `http://IP_MAY_TIN:1880/`. Xem IPv4 bằng `ipconfig`; cho phép Node.js và Mosquitto qua Windows Firewall ở mạng **Private** nếu cần.
+Điện thoại cùng Wi-Fi mở `http://IP_MAY_TIN:1880/`. Xem IPv4 bằng `ipconfig`; chỉ cần cho phép Node.js qua Windows Firewall ở mạng **Private** nếu cần.
 
 ## Cấu hình Firebase, Telegram và OpenAI
 
-1. Bấm đúp `TAO_CAU_HINH.cmd`. Script tạo `config.local.ps1` từ mẫu và mở Notepad.
+1. Sao chép `.env.example` ở root repository thành `.env` nếu chưa có và đổi `NODE_RED_CREDENTIAL_SECRET`.
 2. Điền các biến cần dùng rồi lưu.
-3. Dừng và mở lại `BAT_DAU_WEB.cmd`.
+3. Khởi động lại `npm start`.
 
-`config.local.ps1`, service-account JSON và dữ liệu runtime đã được `.gitignore`; không gửi chúng lên GitHub.
+`.env`, service-account JSON và dữ liệu runtime đã được `.gitignore`; không gửi chúng lên GitHub.
 
 ### Firebase Authentication + Firestore
 
@@ -66,17 +73,17 @@ Frontend chỉ nhận cấu hình Firebase Web công khai. Private key Admin, Te
 
 | Topic | Chiều | Nội dung |
 |---|---|---|
-| `aquarium/data` | ESP32 → Node-RED | nhiệt độ, RAW/điện áp pH và độ đục, cảnh báo độ đục, relay, mode, RSSI |
-| `aquarium/status` | ESP32 → Node-RED | `online`/`offline`, retained/LWT |
-| `aquarium/command` | Node-RED → ESP32 | `ON`, `OFF`, `MODE`; `MANUAL`/`AUTO` |
+| `aquaiot/hcmus-aqua-18/telemetry` | ESP32 → Node-RED | dữ liệu cảm biến và trạng thái relay |
+| `aquaiot/hcmus-aqua-18/status` | ESP32 → Node-RED | `online`/`offline`, retained/LWT |
+| `aquaiot/hcmus-aqua-18/command` | Node-RED → ESP32 | `ON`, `OFF`, `MODE`; `MANUAL`/`AUTO` |
 
-Mosquitto dùng cổng 1884 và anonymous chỉ để demo trong LAN. Không port-forward cổng 1880/1884 ra Internet.
+HiveMQ Public không cần tài khoản và chỉ phù hợp cho demo/học tập. Không gửi secret hoặc dữ liệu nhạy cảm qua topic public.
 
 ## Nạp firmware ESP32
 
 1. Cài `PubSubClient`, `OneWire`, `DallasTemperature`, `Adafruit GFX`, `Adafruit SSD1306`.
 2. Mở `firmware/aqua_iot_nodered/aqua_iot_nodered.ino`.
-3. Điền `WIFI_SSID`, `WIFI_PASSWORD` và sửa `MQTT_HOST` thành IPv4 máy tính.
+3. Điền `WIFI_SSID` và `WIFI_PASSWORD`. Giữ broker mặc định nếu dùng bản demo public.
 4. Chọn **ESP32 Dev Module**, đúng COM, rồi Upload.
 5. Serial Monitor 115200 baud để xem kết nối và telemetry.
 
@@ -91,10 +98,7 @@ Ngưỡng độ đục mặc định trong firmware là điện áp module `< 2,
 - `POST /api/action` — `relay`, `mode`, `settings`, `profile`, `chat`, `testAlert`.
 - `GET /api/health` — trạng thái backend/persistence.
 
-## Dừng hệ thống
+## Lệnh npm
 
-Bấm đúp `DUNG_WEB.cmd`, hoặc chạy:
-
-```powershell
-.\nodered\stop-aqua-iot.ps1
-```
+- `npm start`: chạy Node-RED với `nodered/` làm user directory.
+- `npm run check`: kiểm tra JavaScript backend và cú pháp `flows.json`.

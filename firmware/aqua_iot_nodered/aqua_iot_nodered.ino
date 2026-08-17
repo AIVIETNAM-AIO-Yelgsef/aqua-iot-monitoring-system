@@ -11,15 +11,15 @@
 const char *WIFI_SSID = "TEN_WIFI_CUA_BAN";
 const char *WIFI_PASSWORD = "MAT_KHAU_WIFI_CUA_BAN";
 
-// Dia chi IPv4 cua may tinh chay Node-RED/Mosquitto.
-// May hien tai dang la 192.168.1.8; sua lai neu IP thay doi.
-const char *MQTT_HOST = "192.168.1.8";
-const uint16_t MQTT_PORT = 1884;
+// Public broker: khong can chay Mosquitto tren may tinh.
+const char *MQTT_HOST = "broker.hivemq.com";
+const uint16_t MQTT_PORT = 1883;
 
-const char *DEVICE_ID = "esp32-aqua-01";
-const char *TOPIC_DATA = "aquarium/data";
-const char *TOPIC_STATUS = "aquarium/status";
-const char *TOPIC_COMMAND = "aquarium/command";
+// Device ID duoc dat rieng de tranh trung topic tren public broker.
+const char *DEVICE_ID = "hcmus-aqua-18";
+const char *TOPIC_DATA = "aquaiot/hcmus-aqua-18/telemetry";
+const char *TOPIC_STATUS = "aquaiot/hcmus-aqua-18/status";
+const char *TOPIC_COMMAND = "aquaiot/hcmus-aqua-18/command";
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
@@ -456,20 +456,13 @@ void publishTelemetry() {
 
   payload += "\"turbidityRaw\":" + String(turbidityRaw, 0) + ",";
   payload += "\"turbidityVoltage\":" + String(turbidityVoltage, 3) + ",";
-  payload += "\"turbidityCalibrated\":false,";
   payload += "\"turbidityAlert\":" + String(turbidityAlert ? "true" : "false") + ",";
-  payload += "\"turbidityThreshold\":" + String(TURBIDITY_ALERT_THRESHOLD, 3) + ",";
-  payload += "\"turbidityThresholdMetric\":\"" + String(turbidityMetricText()) + "\",";
-  payload += "\"turbidityAlertDirection\":\"" + String(TURBIDITY_ALERT_WHEN_BELOW ? "BELOW" : "ABOVE") + "\",";
   payload += "\"phRaw\":" + String(phRaw, 0) + ",";
   payload += "\"phVoltage\":" + String(phVoltage, 3) + ",";
   payload += "\"ph\":null,";
-  payload += "\"phCalibrated\":false,";
   payload += "\"relayStatus\":\"" + String(relayOn ? "ON" : "OFF") + "\",";
   payload += "\"controlMode\":\"" + String(relayModeText()) + "\",";
-  payload += "\"automaticControlActive\":false,";
-  payload += "\"rssi\":" + String(WiFi.RSSI()) + ",";
-  payload += "\"uptimeMs\":" + String(millis());
+  payload += "\"rssi\":" + String(WiFi.RSSI());
   payload += "}";
 
   bool ok = mqttClient.publish(TOPIC_DATA, payload.c_str(), false);

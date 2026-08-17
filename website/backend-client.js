@@ -50,7 +50,7 @@
       publicConfig = {
         ...publicConfig,
         offline: true,
-        message: "Không kết nối được Node-RED. Hãy chạy BAT_DAU_WEB.cmd."
+        message: "Không kết nối được Node-RED. Hãy chạy npm start trong thư mục nodered."
       };
     }
   }

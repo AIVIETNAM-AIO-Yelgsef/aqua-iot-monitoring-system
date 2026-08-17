@@ -12,8 +12,8 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const SERVICE_VERSION = "1.0.0";
-const DEFAULT_DEVICE_ID = "esp32-aqua-01";
+const SERVICE_VERSION = "1.1.0";
+const DEFAULT_DEVICE_ID = "hcmus-aqua-18";
 const MAX_LOCAL_TELEMETRY = 10000;
 const MAX_LOCAL_ALERTS = 500;
 const MAX_LOCAL_ACTIVITY = 500;
@@ -470,10 +470,10 @@ function normalizeTelemetry(raw) {
   const timestampMs = Number.isFinite(parsedTime) && parsedTime >= 946684800000 && parsedTime <= now + 300000
     ? parsedTime
     : now;
-  const temperature = finiteNumber(input.temperature ?? input.temperatureC, { min: -55, max: 125 });
+  const temperature = finiteNumber(input.temperatureC ?? input.temperature, { min: -55, max: 125 });
   const ph = finiteNumber(input.ph ?? input.pH, { min: 0, max: 14 });
   const turbidity = finiteNumber(input.turbidity ?? input.ntu ?? input.turbidityNtu, { min: 0, max: 100000 });
-  const relay = relayState(input.relayStatus ?? input.relay ?? input.aerator);
+  const relay = relayState(input.aerator ?? input.relayStatus ?? input.relay);
 
   const normalized = {
     id: cleanText(input.id || makeId("telemetry"), 120),
@@ -500,7 +500,7 @@ function normalizeTelemetry(raw) {
     turbidityThreshold: finiteNumber(input.turbidityThreshold, { min: 0, max: 100000 }),
     turbidityThresholdMetric: cleanText(input.turbidityThresholdMetric || "", 40),
     turbidityThresholdDirection: cleanText(input.turbidityThresholdDirection || "", 20),
-    rssi: finiteNumber(input.rssi, { min: -150, max: 20 }),
+    rssi: finiteNumber(input.wifiRssi ?? input.rssi, { min: -150, max: 20 }),
     uptimeMs: finiteNumber(input.uptimeMs, { min: 0, max: Number.MAX_SAFE_INTEGER })
   };
 
@@ -1183,7 +1183,7 @@ async function handleAction(body, req) {
         requestId,
         message: `Da gui lenh ${on ? "BAT" : "TAT"} relay.`
       }, {
-        topic: "aquarium/command",
+        topic: `aquaiot/${payload.deviceId}/command`,
         payload: JSON.stringify(payload),
         qos: 1,
         retain: false
@@ -1213,7 +1213,7 @@ async function handleAction(body, req) {
         settings,
         message: `Da chuyen che do dieu khien sang ${mode}.`
       }, {
-        topic: "aquarium/command",
+        topic: `aquaiot/${deviceId}/command`,
         payload: JSON.stringify(payload),
         qos: 1,
         retain: false

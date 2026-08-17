@@ -24,6 +24,6 @@ website/
 └── backend-client.js
 ```
 
-Không mở trực tiếp `index.html`. Hãy chạy `nodered/BAT_DAU_WEB.cmd` để website có thể kết nối API Node-RED.
+Không mở trực tiếp `index.html`. Hãy chạy `npm start` trong thư mục `nodered/` để website có thể kết nối API Node-RED.
 
 Xem hướng dẫn cài đặt Firebase, Telegram, OpenAI, MQTT và firmware tại `nodered/README.md`.
