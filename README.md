@@ -10,7 +10,7 @@ Hệ thống IoT giám sát chất lượng nước hồ cá bằng ESP32, Node-
 - Điều khiển relay máy sủi ở chế độ thủ công hoặc nhận chế độ từ MQTT.
 - Gửi dữ liệu ESP32 tới Node-RED qua Mosquitto MQTT.
 - Theo dõi trực tiếp, lịch sử, cảnh báo và trạng thái thiết bị trên website.
-- Hỗ trợ tùy chọn Firebase Authentication/Firestore, Telegram và OpenAI; hệ thống vẫn chạy cục bộ khi chưa cấu hình các dịch vụ này.
+- Hỗ trợ tùy chọn Firebase Authentication/Firestore, Telegram và OpenAI hoặc endpoint tương thích; hệ thống vẫn chạy cục bộ khi chưa cấu hình các dịch vụ này.
 
 ## Cấu trúc repository
 

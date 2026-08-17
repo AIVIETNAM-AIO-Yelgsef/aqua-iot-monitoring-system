@@ -12,7 +12,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const SERVICE_VERSION = "1.2.0";
+const SERVICE_VERSION = "1.3.0";
 const DEFAULT_DEVICE_ID = "esp32-aqua-01";
 const MAX_LOCAL_TELEMETRY = 10000;
 const MAX_LOCAL_ALERTS = 500;
@@ -118,6 +118,22 @@ function makeId(prefix) {
   return `${prefix}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
 }
 
+function normalizeOpenAIBaseUrl(value) {
+  const raw = cleanText(value || "", 500);
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) return null;
+    const pathname = parsed.pathname.replace(/\/+$/, "");
+    return `${parsed.origin}${pathname}`;
+  } catch (_) {
+    return null;
+  }
+}
+
+const openaiBaseUrlRaw = cleanText(process.env.OPENAI_BASE_URL || "", 500);
+const openaiBaseUrl = normalizeOpenAIBaseUrl(openaiBaseUrlRaw);
+
 const config = Object.freeze({
   localDataPath: path.resolve(
     process.env.AQUA_LOCAL_DATA_PATH || path.join(__dirname, "..", "data", "aqua-local.json")
@@ -128,6 +144,8 @@ const config = Object.freeze({
   allowDemoAuth: envBoolean("AQUA_ALLOW_DEMO_AUTH", true),
   checkRevokedTokens: envBoolean("FIREBASE_CHECK_REVOKED_TOKENS", false),
   openaiModel: cleanText(process.env.OPENAI_MODEL || "gpt-5.4-nano", 80),
+  openaiBaseUrl: openaiBaseUrl || "",
+  openaiBaseUrlInvalid: Boolean(openaiBaseUrlRaw && openaiBaseUrl === null),
   openaiTimeoutMs: envNumber("OPENAI_TIMEOUT_MS", 25000, 5000, 120000),
   openaiMaxOutputTokens: envNumber("OPENAI_MAX_OUTPUT_TOKENS", 500, 100, 2000),
   chatRateLimitMax: envNumber("CHAT_RATE_LIMIT_MAX", 12, 1, 100),
@@ -428,6 +446,7 @@ function getPublicConfig() {
 }
 
 function publicFeatures() {
+  const assistant = publicOpenAIStatus();
   return {
     firebase: runtime.firebaseReady,
     firestore: runtime.firebaseReady,
@@ -435,8 +454,9 @@ function publicFeatures() {
     localFallback: true,
     telegram: config.telegramConfigured,
     telegramUserLinking: config.telegramConfigured,
-    openai: config.openaiConfigured && !runtime.openaiLastError,
+    openai: assistant.available,
     openaiConfigured: config.openaiConfigured,
+    openaiOfficial: assistant.provider.official,
     chatbot: true,
     mqttControl: true,
     cloudHistory: runtime.firebaseReady,
@@ -445,13 +465,30 @@ function publicFeatures() {
   };
 }
 
+function openAIProvider() {
+  if (config.openaiBaseUrlInvalid) {
+    return { id: "invalid", label: "Nhà cung cấp AI", hostname: null, official: false };
+  }
+  const target = config.openaiBaseUrl || "https://api.openai.com/v1";
+  const hostname = new URL(target).hostname.toLowerCase();
+  if (hostname === "api.openai.com") {
+    return { id: "openai", label: "OpenAI", hostname, official: true };
+  }
+  if (hostname === "api.ccpro.cn") {
+    return { id: "ccpro", label: "CCPro", hostname, official: false };
+  }
+  return { id: "openai-compatible", label: "Dịch vụ AI tương thích OpenAI", hostname, official: false };
+}
+
 function publicOpenAIStatus() {
+  const reason = config.openaiBaseUrlInvalid ? "OPENAI_BASE_URL_INVALID" : runtime.openaiLastError;
   return {
     configured: config.openaiConfigured,
-    available: config.openaiConfigured && !runtime.openaiLastError,
-    degraded: Boolean(runtime.openaiLastError),
+    available: config.openaiConfigured && !reason,
+    degraded: Boolean(config.openaiConfigured && reason),
     model: config.openaiConfigured ? config.openaiModel : null,
-    reason: runtime.openaiLastError,
+    reason,
+    provider: openAIProvider(),
     lastSuccessAt: runtime.openaiLastSuccessAt,
     lastFailureAt: runtime.openaiLastFailureAt
   };
@@ -1399,7 +1436,18 @@ async function saveProfile(input, principal) {
 
 async function openaiClient() {
   if (!config.openaiConfigured) return null;
+  if (config.openaiBaseUrlInvalid) {
+    throw serviceError(500, "OPENAI_BASE_URL_INVALID", "OPENAI_BASE_URL phai la mot dia chi HTTPS hop le.");
+  }
   if (runtime.openaiClient) return runtime.openaiClient;
+  if (config.openaiBaseUrl) {
+    runtime.openaiClient = {
+      responses: {
+        create: request => compatibleResponsesCreate(request)
+      }
+    };
+    return runtime.openaiClient;
+  }
   const sdk = require("openai");
   const OpenAI = sdk.OpenAI || sdk.default || sdk;
   runtime.openaiClient = new OpenAI({
@@ -1408,6 +1456,64 @@ async function openaiClient() {
     maxRetries: 1
   });
   return runtime.openaiClient;
+}
+
+async function compatibleResponsesCreate(request) {
+  if (typeof fetch !== "function") {
+    const error = new Error("Node.js runtime does not provide fetch().");
+    error.code = "OPENAI_HTTP_CLIENT_UNAVAILABLE";
+    throw error;
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.openaiTimeoutMs);
+  try {
+    const response = await fetch(`${config.openaiBaseUrl}/responses`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+        "User-Agent": `Aqua-IoT/${SERVICE_VERSION}`
+      },
+      body: JSON.stringify(request),
+      signal: controller.signal
+    });
+    const contentLength = finiteNumber(response.headers.get("content-length"), { min: 0 });
+    if (contentLength !== null && contentLength > 2 * 1024 * 1024) {
+      const error = new Error("AI provider response is too large.");
+      error.code = "OPENAI_RESPONSE_TOO_LARGE";
+      error.status = response.status;
+      throw error;
+    }
+    const body = await response.text();
+    if (Buffer.byteLength(body, "utf8") > 2 * 1024 * 1024) {
+      const error = new Error("AI provider response is too large.");
+      error.code = "OPENAI_RESPONSE_TOO_LARGE";
+      error.status = response.status;
+      throw error;
+    }
+    let parsed = {};
+    if (body) {
+      try {
+        parsed = JSON.parse(body);
+      } catch (_) {
+        const error = new Error(`AI provider returned invalid JSON (HTTP ${response.status}).`);
+        error.code = "OPENAI_INVALID_RESPONSE";
+        error.status = response.status;
+        throw error;
+      }
+    }
+    if (!response.ok) {
+      const providerError = parsed && parsed.error && typeof parsed.error === "object" ? parsed.error : {};
+      const error = new Error(cleanText(providerError.message || `AI provider returned HTTP ${response.status}.`, 500));
+      error.status = response.status;
+      error.code = cleanText(providerError.code || providerError.type || `HTTP_${response.status}`, 100);
+      error.type = cleanText(providerError.type || "", 100);
+      throw error;
+    }
+    return parsed;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function chatContext(dashboard) {
@@ -1584,6 +1690,8 @@ function chatSafetyIdentifier(principal) {
 function classifyOpenAIError(error) {
   const code = String(error && (error.code || error.type) || "").toLowerCase();
   const status = Number(error && error.status);
+  if (code.includes("openai_base_url_invalid")) return "OPENAI_BASE_URL_INVALID";
+  if (code.includes("openai_http_client_unavailable")) return "OPENAI_HTTP_CLIENT_UNAVAILABLE";
   if (status === 401 || code.includes("invalid_api_key") || code.includes("authentication")) return "OPENAI_AUTH_FAILED";
   if (code.includes("insufficient_quota")) return "OPENAI_QUOTA_EXCEEDED";
   if (status === 429 || code.includes("rate_limit")) return "OPENAI_RATE_LIMITED";
@@ -1629,14 +1737,15 @@ async function answerChat(question, principal, history = []) {
   try {
     client = await openaiClient();
   } catch (error) {
-    runtime.openaiLastError = "OPENAI_SDK_UNAVAILABLE";
+    const reason = classifyOpenAIError(error);
+    runtime.openaiLastError = reason === "OPENAI_BASE_URL_INVALID" ? reason : "OPENAI_SDK_UNAVAILABLE";
     runtime.openaiLastFailureAt = replyAt;
-    console.warn(`[AquaServices] OpenAI SDK unavailable (${errorCode(error, "OPENAI_SDK_UNAVAILABLE")}); local answer returned.`);
+    console.warn(`[AquaServices] AI client unavailable (${errorCode(error, "OPENAI_SDK_UNAVAILABLE")}); local answer returned.`);
     return {
       answer: localChatAnswer(question, context),
       source: "local-fallback",
       degraded: true,
-      reason: "OPENAI_SDK_UNAVAILABLE",
+      reason: runtime.openaiLastError,
       replyAt,
       historyUsed: history.length,
       assistant: publicOpenAIStatus()
@@ -1679,7 +1788,7 @@ async function answerChat(question, principal, history = []) {
     const reason = classifyOpenAIError(error);
     runtime.openaiLastError = reason;
     runtime.openaiLastFailureAt = replyAt;
-    console.warn(`[AquaServices] OpenAI request failed (${errorCode(error, "OPENAI_REQUEST_FAILED")}); local answer returned.`);
+    console.warn(`[AquaServices] AI provider request failed (${errorCode(error, "OPENAI_REQUEST_FAILED")}); local answer returned.`);
     return {
       answer: localChatAnswer(question, context),
       source: "local-fallback",

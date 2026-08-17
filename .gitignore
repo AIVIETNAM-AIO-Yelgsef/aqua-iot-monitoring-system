@@ -10,6 +10,7 @@ nodered/*.pid
 nodered/config.local.ps1
 nodered/flows_cred.json
 **/service-account*.json
+Hướng dẫn sử dụng kích hoạt Codex.docx
 .env
 .env.*
 !.env.example

@@ -22,9 +22,12 @@ $env:TELEGRAM_CHAT_ID = ""
 $env:TELEGRAM_POLL_INTERVAL_MS = "3000"
 $env:TELEGRAM_LINK_TTL_MS = "600000"
 
-# OpenAI API: khoa chi nam o backend Node-RED, khong dua vao website.
+# AI API: khoa chi nam o backend Node-RED, khong dua vao website.
 $env:OPENAI_API_KEY = ""
 $env:OPENAI_MODEL = "gpt-5.4-nano"
+# De trong de goi OpenAI chinh thuc. Chi dien khi nha cung cap khoa yeu cau
+# endpoint OpenAI-compatible rieng. Toan bo cau hoi va ngu canh se gui toi endpoint nay.
+$env:OPENAI_BASE_URL = ""
 # Gioi han chi phi va tranh spam chatbot trong mang LAN.
 $env:OPENAI_TIMEOUT_MS = "25000"
 $env:OPENAI_MAX_OUTPUT_TOKENS = "500"

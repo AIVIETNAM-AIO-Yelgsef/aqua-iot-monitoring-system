@@ -1,6 +1,6 @@
 # Aqua IoT — web quản lý theo proposal nhóm 18
 
-Hệ thống gồm web responsive, Node-RED backend, Mosquitto MQTT và firmware ESP32. Khi chưa nhập khóa Cloud, luồng ESP32 → MQTT → web → relay vẫn hoạt động bằng kho JSON cục bộ. Firebase, Telegram và OpenAI tự bật khi có cấu hình hợp lệ.
+Hệ thống gồm web responsive, Node-RED backend, Mosquitto MQTT và firmware ESP32. Khi chưa nhập khóa Cloud, luồng ESP32 → MQTT → web → relay vẫn hoạt động bằng kho JSON cục bộ. Firebase, Telegram và nhà cung cấp AI tự bật khi có cấu hình hợp lệ.
 
 ## Chức năng đã triển khai
 
@@ -12,7 +12,7 @@ Hệ thống gồm web responsive, Node-RED backend, Mosquitto MQTT và firmware
 | YC4 | Firestore lưu telemetry, cảnh báo, hồ sơ và lịch sử lệnh; có kho JSON dự phòng |
 | YC5 | Biểu đồ/bảng lịch sử 6 giờ–30 ngày và xuất CSV |
 | YC6 | Kiểm tra ngưỡng pH/nhiệt độ, cooldown và gửi Telegram Bot API |
-| YC8 | Chatbot OpenAI dùng dữ liệu hiện tại, lịch sử, cảnh báo và relay làm ngữ cảnh |
+| YC8 | Chatbot Responses API dùng dữ liệu hiện tại, lịch sử, cảnh báo và relay làm ngữ cảnh |
 | YC9 | Firebase email/password, backend xác minh ID token, hồ sơ/quyền trong Firestore |
 
 ## Chạy nhanh
@@ -30,7 +30,7 @@ Các địa chỉ:
 
 Điện thoại cùng Wi‑Fi mở `http://IP_MAY_TIN:1880/`. Xem IPv4 bằng `ipconfig`; cho phép Node.js và Mosquitto qua Windows Firewall ở mạng **Private** nếu cần.
 
-## Cấu hình Firebase, Telegram và OpenAI
+## Cấu hình Firebase, Telegram và AI
 
 1. Bấm đúp `TAO_CAU_HINH.cmd`. Script tạo `config.local.ps1` từ mẫu và mở Notepad.
 2. Điền các biến cần dùng rồi lưu.
@@ -49,7 +49,7 @@ Trong Firebase Console:
 5. Lưu JSON ngoài thư mục public, đặt đường dẫn tuyệt đối vào `FIREBASE_SERVICE_ACCOUNT_PATH`.
 6. Khi thử xong, đặt `AQUA_ALLOW_DEMO_AUTH=false` để buộc đăng nhập Firebase.
 
-Frontend chỉ nhận cấu hình Firebase Web công khai. Private key Admin, Telegram token và OpenAI key chỉ được đọc ở backend. ID token gửi bằng header `Authorization: Bearer ...` và được Firebase Admin xác minh trước khi trả dashboard.
+Frontend chỉ nhận cấu hình Firebase Web công khai. Private key Admin, Telegram token và khóa AI chỉ được đọc ở backend. ID token gửi bằng header `Authorization: Bearer ...` và được Firebase Admin xác minh trước khi trả dashboard.
 
 ### Telegram
 
@@ -62,9 +62,20 @@ Frontend chỉ nhận cấu hình Firebase Web công khai. Private key Admin, Te
 
 Telegram không cho website tự đọc ID chỉ bằng cách mở ứng dụng. Việc người dùng bấm **Start** là bước đồng ý bắt buộc. Token deep-link hết hạn sau 10 phút, chỉ dùng một lần; raw Telegram ID và Bot token không được trả về frontend.
 
-### OpenAI
+### OpenAI hoặc endpoint tương thích
 
-Điền `OPENAI_API_KEY`; có thể đổi `OPENAI_MODEL`. Backend dùng Responses API theo mô hình chỉ đọc:
+Điền `OPENAI_API_KEY`; có thể đổi `OPENAI_MODEL`. Nếu dùng khóa OpenAI chính thức, để trống `OPENAI_BASE_URL`. Nếu nhà cung cấp khóa yêu cầu một endpoint OpenAI-compatible riêng, đặt URL HTTPS đó vào `OPENAI_BASE_URL`.
+
+Ví dụ cấu hình cục bộ theo tài liệu CCPro do chủ dự án cung cấp:
+
+```powershell
+$env:OPENAI_BASE_URL = "https://api.ccpro.cn/v1"
+$env:OPENAI_MODEL = "gpt-5.4"
+```
+
+CCPro là dịch vụ trung gian bên thứ ba, không phải endpoint OpenAI chính thức. Tài khoản đang dùng đã được kiểm thử với model `gpt-5.4`; `gpt-5.4-nano` bị CCPro trả về `model_not_found`. Khi cấu hình URL trên, câu hỏi, lịch sử hội thoại giới hạn và ngữ cảnh cảm biến mô tả bên dưới sẽ được gửi tới CCPro. Website hiển thị đúng tên nhà cung cấp đang hoạt động. Không chạy lệnh cài đặt từ xa dạng `irm ... | iex`; chỉ cấu hình biến môi trường thủ công và không commit `config.local.ps1`.
+
+Backend dùng Responses API theo mô hình chỉ đọc:
 
 - Mỗi câu hỏi nhận tối đa 10 tin nhắn trước đó để hội thoại nhiều lượt nhưng không làm phình chi phí.
 - Ngữ cảnh gồm dữ liệu mới nhất, tối đa 120 bản ghi trong 24 giờ, 10 cảnh báo gần nhất, ngưỡng và trạng thái relay/kết nối.
@@ -73,7 +84,7 @@ Telegram không cho website tự đọc ID chỉ bằng cách mở ứng dụng.
 - Request đặt `store: false`; khóa API chỉ ở backend. Mã người dùng gửi cho cơ chế an toàn được băm một chiều.
 - Mặc định tối đa 12 câu/phút cho mỗi tài khoản; chỉnh bằng `CHAT_RATE_LIMIT_MAX` và `CHAT_RATE_LIMIT_WINDOW_MS`.
 
-Nếu thiếu key, key sai, hết quota, timeout hoặc OpenAI tạm lỗi, trang chat tự chuyển sang bộ trả lời cục bộ và hiển thị đúng lý do. Sau khi sửa `config.local.ps1`, phải dừng rồi mở lại hệ thống để Node-RED nhận biến môi trường mới.
+Nếu thiếu key, key sai, hết quota, timeout hoặc nhà cung cấp AI tạm lỗi, trang chat tự chuyển sang bộ trả lời cục bộ và hiển thị đúng lý do. `OPENAI_BASE_URL` không hợp lệ cũng bị chặn thay vì âm thầm gửi key sang endpoint khác. Sau khi sửa `config.local.ps1`, phải dừng rồi mở lại hệ thống để Node-RED nhận biến môi trường mới.
 
 ## MQTT
 
