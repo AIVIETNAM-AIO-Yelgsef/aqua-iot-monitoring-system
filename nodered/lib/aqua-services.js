@@ -12,11 +12,14 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const SERVICE_VERSION = "1.3.0";
+const SERVICE_VERSION = "1.4.0";
 const DEFAULT_DEVICE_ID = "esp32-aqua-01";
 const MAX_LOCAL_TELEMETRY = 10000;
 const MAX_LOCAL_ALERTS = 500;
 const MAX_LOCAL_ACTIVITY = 500;
+const MAX_LOCAL_ACCOUNTS = 100;
+const MAX_LOCAL_SESSIONS = 200;
+const LOCAL_PASSWORD_KEY_BYTES = 64;
 const MAX_TELEGRAM_LINK_REQUESTS = 50;
 const TELEGRAM_LINK_PREFIX = "aqua_";
 const MAX_CHAT_HISTORY_MESSAGES = 10;
@@ -55,6 +58,14 @@ function cleanText(value, maxLength = 200) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+}
+
+function normalizeEmail(value) {
+  return cleanText(value, 254).toLowerCase();
+}
+
+function validEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 }
 
 function parseBoolean(value, fallback = false) {
@@ -142,6 +153,8 @@ const config = Object.freeze({
   alertCooldownMs: envNumber("ALERT_COOLDOWN_MS", 600000, 10000, 86400000),
   deviceOfflineMs: envNumber("DEVICE_OFFLINE_MS", 45000, 5000, 3600000),
   allowDemoAuth: envBoolean("AQUA_ALLOW_DEMO_AUTH", true),
+  allowLocalAuth: envBoolean("AQUA_ALLOW_LOCAL_AUTH", true),
+  localSessionTtlMs: envNumber("AQUA_LOCAL_SESSION_TTL_MS", 2592000000, 3600000, 7776000000),
   checkRevokedTokens: envBoolean("FIREBASE_CHECK_REVOKED_TOKENS", false),
   openaiModel: cleanText(process.env.OPENAI_MODEL || "gpt-5.4-nano", 80),
   openaiBaseUrl: openaiBaseUrl || "",
@@ -177,13 +190,15 @@ const defaultSettings = Object.freeze({
 });
 
 const emptyLocalState = () => ({
-  version: 1,
+  version: 2,
   latest: null,
   telemetry: [],
   alerts: [],
   activity: [],
   settings: { ...defaultSettings },
   profiles: {},
+  localAccounts: {},
+  localSessions: {},
   telegramSubscriptions: {},
   telegramLinkRequests: {},
   telegramUpdateOffset: 0,
@@ -213,6 +228,45 @@ function sanitizeLoadedState(input) {
   base.profiles = input.profiles && typeof input.profiles === "object" && !Array.isArray(input.profiles)
     ? input.profiles
     : {};
+  if (input.localAccounts && typeof input.localAccounts === "object" && !Array.isArray(input.localAccounts)) {
+    for (const [rawUid, rawAccount] of Object.entries(input.localAccounts).slice(0, MAX_LOCAL_ACCOUNTS)) {
+      if (!rawAccount || typeof rawAccount !== "object") continue;
+      const uid = cleanText(rawUid, 128);
+      const email = normalizeEmail(rawAccount.email);
+      const passwordSalt = cleanText(rawAccount.passwordSalt, 64).toLowerCase();
+      const passwordHash = cleanText(rawAccount.passwordHash, 128).toLowerCase();
+      if (!/^local-[a-f0-9]{24}$/.test(uid) || !validEmail(email)) continue;
+      if (!/^[a-f0-9]{32}$/.test(passwordSalt) || !/^[a-f0-9]{128}$/.test(passwordHash)) continue;
+      base.localAccounts[uid] = {
+        uid,
+        email,
+        name: cleanText(rawAccount.name || email.split("@")[0] || "Nguoi dung", 100),
+        passwordSalt,
+        passwordHash,
+        disabled: parseBoolean(rawAccount.disabled, false),
+        createdAt: safeIso(rawAccount.createdAt),
+        updatedAt: safeIso(rawAccount.updatedAt || rawAccount.createdAt)
+      };
+    }
+  }
+  if (input.localSessions && typeof input.localSessions === "object" && !Array.isArray(input.localSessions)) {
+    const now = Date.now();
+    const sessions = Object.entries(input.localSessions)
+      .filter(([, session]) => session && typeof session === "object")
+      .sort((left, right) => new Date(right[1].createdAt || 0) - new Date(left[1].createdAt || 0));
+    for (const [rawHash, rawSession] of sessions.slice(0, MAX_LOCAL_SESSIONS)) {
+      const tokenHash = cleanText(rawHash, 64).toLowerCase();
+      const uid = cleanText(rawSession.uid, 128);
+      const expiresAtMs = new Date(rawSession.expiresAt || 0).getTime();
+      if (!/^[a-f0-9]{64}$/.test(tokenHash) || !base.localAccounts[uid]) continue;
+      if (!Number.isFinite(expiresAtMs) || expiresAtMs <= now) continue;
+      base.localSessions[tokenHash] = {
+        uid,
+        createdAt: safeIso(rawSession.createdAt),
+        expiresAt: new Date(expiresAtMs).toISOString()
+      };
+    }
+  }
   if (input.telegramSubscriptions && typeof input.telegramSubscriptions === "object" && !Array.isArray(input.telegramSubscriptions)) {
     for (const [rawUid, rawSubscription] of Object.entries(input.telegramSubscriptions)) {
       const uid = cleanText(rawUid, 128);
@@ -278,7 +332,7 @@ let localWriteQueue = Promise.resolve();
 
 function localSnapshot() {
   return {
-    version: 1,
+    version: 2,
     savedAt: new Date().toISOString(),
     latest: localState.latest,
     telemetry: localState.telemetry.slice(-MAX_LOCAL_TELEMETRY),
@@ -286,6 +340,8 @@ function localSnapshot() {
     activity: localState.activity.slice(-MAX_LOCAL_ACTIVITY),
     settings: localState.settings,
     profiles: localState.profiles,
+    localAccounts: localState.localAccounts,
+    localSessions: localState.localSessions,
     telegramSubscriptions: localState.telegramSubscriptions,
     telegramLinkRequests: localState.telegramLinkRequests,
     telegramUpdateOffset: localState.telegramUpdateOffset,
@@ -439,6 +495,7 @@ function getPublicConfig() {
     authentication: {
       firebaseConfigured: firebaseClientConfigured && runtime.firebaseReady,
       required: Boolean(runtime.firebaseAuth),
+      localAccountsAvailable: !runtime.firebaseAuth && config.allowLocalAuth,
       demoAllowed: !runtime.firebaseAuth && config.allowDemoAuth
     },
     features: publicFeatures()
@@ -503,6 +560,166 @@ function bearerToken(req) {
   return match ? match[1].trim() : "";
 }
 
+function localTokenHash(value) {
+  return crypto.createHash("sha256").update(String(value || ""), "utf8").digest("hex");
+}
+
+function localAccountPublic(account) {
+  return {
+    id: account.uid,
+    uid: account.uid,
+    email: account.email,
+    name: account.name,
+    role: "user",
+    demo: false,
+    accountMode: "local"
+  };
+}
+
+function localPrincipal(account) {
+  return {
+    uid: account.uid,
+    email: account.email,
+    name: account.name,
+    role: "user",
+    emailVerified: false,
+    demo: false,
+    accountMode: "local"
+  };
+}
+
+function findLocalAccountByEmail(email) {
+  const normalized = normalizeEmail(email);
+  return Object.values(localState.localAccounts).find(account => account.email === normalized) || null;
+}
+
+function deriveLocalPassword(password, salt) {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, LOCAL_PASSWORD_KEY_BYTES, { N: 16384, r: 8, p: 1 }, (error, key) => {
+      if (error) reject(error);
+      else resolve(key.toString("hex"));
+    });
+  });
+}
+
+function cleanupLocalSessions() {
+  const now = Date.now();
+  let changed = false;
+  for (const [tokenHash, session] of Object.entries(localState.localSessions)) {
+    const expiresAt = new Date(session && session.expiresAt || 0).getTime();
+    if (!localState.localAccounts[session && session.uid] || !Number.isFinite(expiresAt) || expiresAt <= now) {
+      delete localState.localSessions[tokenHash];
+      changed = true;
+    }
+  }
+  const remaining = Object.entries(localState.localSessions)
+    .sort((left, right) => new Date(left[1].createdAt || 0) - new Date(right[1].createdAt || 0));
+  while (remaining.length >= MAX_LOCAL_SESSIONS) {
+    const [tokenHash] = remaining.shift();
+    delete localState.localSessions[tokenHash];
+    changed = true;
+  }
+  return changed;
+}
+
+function createLocalSession(account) {
+  cleanupLocalSessions();
+  const accessToken = `aqua_local_${crypto.randomBytes(32).toString("base64url")}`;
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + config.localSessionTtlMs);
+  localState.localSessions[localTokenHash(accessToken)] = {
+    uid: account.uid,
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString()
+  };
+  return { accessToken, expiresAt: expiresAt.toISOString() };
+}
+
+async function registerLocalAccount(input) {
+  if (runtime.firebaseAuth || !config.allowLocalAuth) {
+    throw serviceError(409, "LOCAL_AUTH_UNAVAILABLE", "Dang ky cuc bo khong kha dung khi Firebase Authentication dang bat.");
+  }
+  const name = cleanText(input.name, 100);
+  const email = normalizeEmail(input.email);
+  const password = String(input.password || "");
+  if (name.length < 2) throw serviceError(422, "AUTH_NAME_INVALID", "Ho ten can it nhat 2 ky tu.");
+  if (!validEmail(email)) throw serviceError(422, "AUTH_EMAIL_INVALID", "Email khong hop le.");
+  if (password.length < 6 || password.length > 128) {
+    throw serviceError(422, "AUTH_PASSWORD_INVALID", "Mat khau can tu 6 den 128 ky tu.");
+  }
+  if (findLocalAccountByEmail(email)) {
+    throw serviceError(409, "AUTH_EMAIL_EXISTS", "Email nay da duoc dang ky.");
+  }
+  if (Object.keys(localState.localAccounts).length >= MAX_LOCAL_ACCOUNTS) {
+    throw serviceError(503, "AUTH_ACCOUNT_LIMIT", "He thong cuc bo da dat gioi han tai khoan.");
+  }
+
+  const uid = `local-${crypto.randomBytes(12).toString("hex")}`;
+  const passwordSalt = crypto.randomBytes(16).toString("hex");
+  const now = new Date().toISOString();
+  const account = {
+    uid,
+    email,
+    name,
+    passwordSalt,
+    passwordHash: await deriveLocalPassword(password, passwordSalt),
+    disabled: false,
+    createdAt: now,
+    updatedAt: now
+  };
+  localState.localAccounts[uid] = account;
+  localState.profiles[uid] = {
+    uid,
+    name,
+    email,
+    pondName: "Ho ca chinh",
+    role: "user",
+    updatedAt: now
+  };
+  const session = createLocalSession(account);
+  await persistLocal();
+  return { user: localAccountPublic(account), ...session };
+}
+
+async function loginLocalAccount(input) {
+  if (runtime.firebaseAuth || !config.allowLocalAuth) {
+    throw serviceError(409, "LOCAL_AUTH_UNAVAILABLE", "Dang nhap cuc bo khong kha dung khi Firebase Authentication dang bat.");
+  }
+  const email = normalizeEmail(input.email);
+  const password = String(input.password || "");
+  const account = findLocalAccountByEmail(email);
+  let valid = false;
+  if (account && !account.disabled && password.length <= 128) {
+    const candidate = await deriveLocalPassword(password, account.passwordSalt);
+    const expectedBuffer = Buffer.from(account.passwordHash, "hex");
+    const candidateBuffer = Buffer.from(candidate, "hex");
+    valid = expectedBuffer.length === candidateBuffer.length && crypto.timingSafeEqual(expectedBuffer, candidateBuffer);
+  }
+  if (!valid) throw serviceError(401, "AUTH_LOGIN_INVALID", "Email hoac mat khau khong dung.");
+  const session = createLocalSession(account);
+  await persistLocal();
+  return { user: localAccountPublic(account), ...session };
+}
+
+function localPrincipalFromRequest(req) {
+  const token = bearerToken(req);
+  if (!token || !token.startsWith("aqua_local_") || token.length > 160) return null;
+  const session = localState.localSessions[localTokenHash(token)];
+  if (!session) return null;
+  const expiresAt = new Date(session.expiresAt || 0).getTime();
+  const account = localState.localAccounts[session.uid];
+  if (!account || account.disabled || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null;
+  return localPrincipal(account);
+}
+
+async function logoutLocalAccount(req) {
+  const token = bearerToken(req);
+  if (token && token.startsWith("aqua_local_") && token.length <= 160) {
+    delete localState.localSessions[localTokenHash(token)];
+    await persistLocal();
+  }
+}
+
 function demoPrincipal() {
   return {
     uid: "demo",
@@ -526,8 +743,15 @@ async function verifyRequest(reqOrOptions, options = {}) {
   }
 
   if (!runtime.firebaseAuth) {
+    const token = bearerToken(req);
+    if (token) {
+      const principal = config.allowLocalAuth ? localPrincipalFromRequest(req) : null;
+      if (principal) return principal;
+      throw serviceError(401, "AUTH_INVALID", "Phien dang nhap cuc bo khong hop le hoac da het han.");
+    }
     if (config.allowDemoAuth) return demoPrincipal();
-    throw serviceError(503, "AUTH_NOT_CONFIGURED", "Firebase Authentication chua duoc cau hinh.");
+    if (config.allowLocalAuth) throw serviceError(401, "AUTH_REQUIRED", "Can dang nhap de truy cap he thong.");
+    throw serviceError(503, "AUTH_NOT_CONFIGURED", "Chua cau hinh he thong xac thuc.");
   }
 
   const token = bearerToken(req);
@@ -1424,6 +1648,10 @@ async function saveProfile(input, principal) {
     updatedAt: new Date().toISOString()
   };
   localState.profiles[uid] = profile;
+  if (localState.localAccounts[uid]) {
+    localState.localAccounts[uid].name = name;
+    localState.localAccounts[uid].updatedAt = profile.updatedAt;
+  }
   await persistLocal();
   if (runtime.firestore && uid !== "demo") {
     await firestoreSet(config.collections.profiles, uid, {
@@ -1830,6 +2058,31 @@ async function handleAction(body, req) {
     const input = parseBody(body);
     const action = cleanText(input.action, 40).toLowerCase();
     if (!action) throw serviceError(400, "ACTION_REQUIRED", "Thieu action.");
+
+    if (action === "authregister" || action === "auth-register") {
+      const auth = await registerLocalAccount(input);
+      return actionResult(201, { ok: true, action: "authRegister", ...auth });
+    }
+
+    if (action === "authlogin" || action === "auth-login") {
+      const auth = await loginLocalAccount(input);
+      return actionResult(200, { ok: true, action: "authLogin", ...auth });
+    }
+
+    if (action === "authsession" || action === "auth-session") {
+      if (runtime.firebaseAuth || !config.allowLocalAuth) {
+        throw serviceError(409, "LOCAL_AUTH_UNAVAILABLE", "Phien tai khoan cuc bo khong kha dung.");
+      }
+      const localUser = localPrincipalFromRequest(req);
+      if (!localUser) throw serviceError(401, "AUTH_INVALID", "Phien dang nhap cuc bo khong hop le hoac da het han.");
+      return actionResult(200, { ok: true, action: "authSession", user: localAccountPublic(localState.localAccounts[localUser.uid]) });
+    }
+
+    if (action === "authlogout" || action === "auth-logout") {
+      await logoutLocalAccount(req);
+      return actionResult(200, { ok: true, action: "authLogout" });
+    }
+
     const principal = await verifyRequest(req);
     if (principal.role === "viewer" && ["relay", "mode", "settings", "profile", "testalert", "test-alert"].includes(action)) {
       throw serviceError(403, "ACTION_FORBIDDEN", "Tai khoan chi co quyen xem.");

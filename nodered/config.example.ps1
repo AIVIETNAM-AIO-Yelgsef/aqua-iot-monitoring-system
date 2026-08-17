@@ -40,4 +40,5 @@ $env:ALERT_COOLDOWN_MS = "600000"
 
 # Cho phep vao che do local khi Firebase chua cau hinh.
 # Doi thanh false khi trien khai that va Firebase da hoat dong.
+$env:AQUA_ALLOW_LOCAL_AUTH = "true"
 $env:AQUA_ALLOW_DEMO_AUTH = "true"
