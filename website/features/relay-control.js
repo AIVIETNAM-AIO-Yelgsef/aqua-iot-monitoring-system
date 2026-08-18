@@ -1,3 +1,5 @@
+import { apiFetch } from "./api-client.js";
+
 const relayOnButton =
     document.getElementById("relay-on-button");
 
@@ -55,4 +57,3 @@ export function initRelayControl({ refreshDashboard }) {
         setRelay(false, refreshDashboard);
     });
 }
-import { apiFetch } from "./api-client.js";

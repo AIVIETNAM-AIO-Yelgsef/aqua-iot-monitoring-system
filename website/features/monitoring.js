@@ -1,3 +1,5 @@
+import { apiFetch } from "./api-client.js";
+
 const temperatureElement =
     document.getElementById("temperature");
 
@@ -75,4 +77,3 @@ export function initMonitoring() {
         loadDashboard
     };
 }
-import { apiFetch } from "./api-client.js";

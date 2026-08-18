@@ -1,3 +1,5 @@
+import { apiFetch } from "./api-client.js";
+
 const chatForm =
     document.getElementById("chat-form");
 
@@ -13,7 +15,7 @@ const chatMessagesElement =
 const chatErrorElement =
     document.getElementById("chat-error");
 
-function addChatMessage(role, text) {
+function addChatMessage(role, text) { // role: user / assistant
     const message = document.createElement("p");
     const label = document.createElement("strong");
     const content = document.createTextNode(text);
@@ -24,8 +26,8 @@ function addChatMessage(role, text) {
 
     message.append(label, content);
     chatMessagesElement.appendChild(message);
-    chatMessagesElement.scrollTop =
-        chatMessagesElement.scrollHeight;
+    chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
+    // cuộn chat xuống cuối sau khi có tin nhắn mới
 }
 
 async function sendChatQuestion(event) {
@@ -38,7 +40,7 @@ async function sendChatQuestion(event) {
     }
 
     addChatMessage("user", question);
-
+    // Xóa QuestionArea + Lỗi cũ, ngăn gửi thêm + sửa nội dung
     chatQuestionElement.value = "";
     chatErrorElement.textContent = "";
     chatSendButton.disabled = true;
@@ -73,11 +75,10 @@ async function sendChatQuestion(event) {
     } finally {
         chatSendButton.disabled = false;
         chatQuestionElement.disabled = false;
-        chatQuestionElement.focus();
+        chatQuestionElement.focus(); // Đưa focus về text area để gõ tiếp
     }
 }
 
 export function initChatbot() {
     chatForm.addEventListener("submit", sendChatQuestion);
 }
-import { apiFetch } from "./api-client.js";

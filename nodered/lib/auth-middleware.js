@@ -9,24 +9,27 @@ let auth;
 let initError;
 
 function readServiceAccount() {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  }
+    const configuredPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
 
-  const configured = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-  const candidates = [];
-  if (configured) candidates.push(path.resolve(__dirname, "..", configured));
-  candidates.push(path.resolve(__dirname, "..", "service-account.json"));
+    if (!configuredPath) {
+      throw new Error("Chưa cấu hình FIREBASE_SERVICE_ACCOUNT_PATH");
+    }
 
-  const filename = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!filename) throw new Error("Không tìm thấy Firebase service account");
-  return JSON.parse(fs.readFileSync(filename, "utf8"));
+    const serviceAccountPath = path.resolve(
+      __dirname,
+      "..",
+      configuredPath
+    );
+
+    return JSON.parse(
+      fs.readFileSync(serviceAccountPath, "utf8")
+    );
 }
 
 function getFirebaseAuth() {
   if (auth) return auth;
   if (initError) throw initError;
-  try {
+  try { // getApps(): hàm trả ds Firebase Admin app trong process
     if (getApps().length === 0) initializeApp({ credential: cert(readServiceAccount()) });
     auth = getAuth();
     return auth;

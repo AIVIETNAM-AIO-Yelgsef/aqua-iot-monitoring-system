@@ -14,7 +14,7 @@ const {
     FieldValue
 } = require("firebase-admin/firestore");
 
-let firestore = null;
+let firestore = null; // database connection
 
 function initializeFirestore() {
     if (firestore) {
@@ -28,9 +28,6 @@ function initializeFirestore() {
     }
 
     let serviceAccountPath = path.resolve(__dirname, "..", configuredPath);
-    if (!fs.existsSync(serviceAccountPath)) {
-        serviceAccountPath = path.resolve(__dirname, "..", "service-account.json");
-    }
 
     const serviceAccount = JSON.parse(
         fs.readFileSync(serviceAccountPath, "utf8")
@@ -60,7 +57,7 @@ async function saveTelemetry(telemetry) {
         ph: telemetry.ph,
         relayOn: telemetry.relayOn,
         receivedAt: Timestamp.fromDate(receivedAt),
-        createdAt: FieldValue.serverTimestamp()
+        createdAt: FieldValue.serverTimestamp() // Server tự điền: thời điểm Firestore ghi document
     };
 
     const reference = await database
@@ -73,7 +70,7 @@ async function saveTelemetry(telemetry) {
     };
 }
 
-async function readTelemetryHistory({ hours = 24, limit = 360 } = {}) {
+async function readTelemetryHistory({ hours = 24, limit = 1440 } = {}) {
     const database = initializeFirestore();
 
     const fromDate = new Date(

@@ -1,3 +1,5 @@
+import { apiFetch } from "./api-client.js";
+
 const historyHoursElement =
     document.getElementById("history-hours");
 
@@ -21,6 +23,8 @@ const phChartCanvas =
 
 let temperatureChart = null;
 let phChart = null;
+ 
+const TABLE_HISTORY_LIMIT = 5;
 
 function renderHistoryCharts(items) {
     const labels = items.map((item) => {
@@ -36,13 +40,13 @@ function renderHistoryCharts(items) {
     if (phChart) {
         phChart.destroy();
     }
-
-    temperatureChart = new window.Chart(
+    // Tạo biểu đồ mới
+    temperatureChart = new window.Chart( // Chart.js 
         temperatureChartCanvas,
         {
-            type: "line",
+            type: "line", // Biểu đồ đường
             data: {
-                labels,
+                labels, // Time trên trục X
                 datasets: [
                     {
                         label: "Nhiệt độ (°C)",
@@ -51,17 +55,17 @@ function renderHistoryCharts(items) {
                         }),
                         borderColor: "#e76f51",
                         backgroundColor: "rgba(231, 111, 81, 0.15)",
-                        tension: 0.3,
+                        tension: 0.3, // Uốn mượt đường nối
                         spanGaps: true
                     }
                 ]
             },
             options: {
-                responsive: true,
+                responsive: true, // Dynamic kích thước
                 maintainAspectRatio: false,
                 interaction: {
-                    mode: "index",
-                    intersect: false
+                    mode: "index", // Hover theo index X
+                    intersect: false // Không cần chính xác điểm
                 }
             }
         }
@@ -105,9 +109,9 @@ function renderHistoryCharts(items) {
 }
 
 function renderHistoryTable(items) {
-    historyBodyElement.replaceChildren();
+    historyBodyElement.replaceChildren(); // Xóa hàng cũ trong <tbody>
 
-    for (const item of items) {
+    for (const item of items) { // 1 hàng 4 cột (1 table row 4 table data)
         const row = document.createElement("tr");
         const timeCell = document.createElement("td");
         const temperatureCell = document.createElement("td");
@@ -144,13 +148,14 @@ function renderHistoryTable(items) {
 
 async function loadHistory() {
     const hours = historyHoursElement.value;
+    const limit = hours * 60;
 
     loadHistoryButton.disabled = true;
     historyErrorElement.textContent = "";
 
     try {
         const response = await apiFetch(
-            `/api/history?hours=${hours}&limit=5`
+            `/api/history?hours=${hours}&limit=${limit}`
         );
 
         const data = await response.json();
@@ -161,12 +166,14 @@ async function loadHistory() {
             );
         }
 
-        const latestFive = Array.isArray(data.history)
-            ? data.history.slice(0, 5)
+        const chartItems = Array.isArray(data.history)
+            ? data.history
             : [];
-        historyCountElement.textContent = latestFive.length;
-        renderHistoryCharts(latestFive);
-        renderHistoryTable(latestFive);
+        const tableItems = chartItems.slice(-TABLE_HISTORY_LIMIT);
+
+        historyCountElement.textContent = tableItems.length;
+        renderHistoryCharts(chartItems);
+        renderHistoryTable(tableItems);
     } catch (error) {
         historyCountElement.textContent = "0";
         renderHistoryCharts([]);
@@ -183,4 +190,3 @@ export function initCloudHistory() {
     loadHistoryButton.addEventListener("click", loadHistory);
     loadHistory();
 }
-import { apiFetch } from "./api-client.js";

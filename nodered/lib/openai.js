@@ -31,13 +31,7 @@ function getClient() {
     };
 
     if (baseURL) {
-        const parsedURL = new URL(baseURL);
-
-        if (parsedURL.protocol !== "https:") {
-            throw new Error(
-                "OPENAI_BASE_URL phải sử dụng HTTPS"
-            );
-        }
+        const parsedURL = new URL(baseURL); // Kiểm tra URL hợp lệ 
 
         options.baseURL =
             baseURL.replace(/\/+$/, "");
@@ -67,9 +61,7 @@ async function askAquaAssistant(
         );
     }
 
-    const model =
-        process.env.OPENAI_MODEL ||
-        "gpt-5.4-mini";
+    const model = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 
     const response =
         await getClient().responses.create({
@@ -78,7 +70,8 @@ async function askAquaAssistant(
             instructions:
                 "Bạn là trợ lý cho hệ thống giám sát nước hồ cá Aqua IoT. " +
                 "Chỉ trả lời dựa trên dữ liệu hệ thống được cung cấp. Nếu không có đủ dữ liệu, hãy nói rõ rằng chưa đủ dữ liệu. " +
-                "Không tự tạo giá trị cảm biến.",
+                "Không tự tạo giá trị cảm biến." +
+                "Chỉ trả về text raw, không trả về markdown hay html javascript",
 
             input:
                 "Dữ liệu hệ thống:\n" +

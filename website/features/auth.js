@@ -1,5 +1,4 @@
-// Firebase Authentication tối giản cho website Aqua IoT.
-// Chỉ dùng Web SDK ở trình duyệt; tuyệt đối không đặt service-account.json ở đây.
+// Firebase Authentication cho website Aqua IoT.
 import { initializeApp } from
   "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
 
@@ -17,17 +16,20 @@ import {
 import { getFirestore, doc, setDoc, serverTimestamp } from
   "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
+// Project Setting in Firebase -> General
+// Cấu hình cho Firebase Project mà Frontend kết nối đến
 const firebaseConfig = {
-  apiKey: "AIzaSyC3E8PH_A2wx2S26MsZTTkUAe79FqH_e0U",
-  authDomain: "aquaiot-89bde.firebaseapp.com",
-  projectId: "aquaiot-89bde",
-  storageBucket: "aquaiot-89bde.firebasestorage.app",
-  messagingSenderId: "700765915930",
-  appId: "1:700765915930:web:65b6e20bf4efb809de3aa3"
+  apiKey: "AIzaSyDzEwDodPFopLQ7KXDShT3dvfyv_NYjfE8",
+  authDomain: "aqua-iot-d9057.firebaseapp.com",
+  projectId: "aqua-iot-d9057",
+  storageBucket: "aqua-iot-d9057.firebasestorage.app",
+  messagingSenderId: "75160435176",
+  appId: "1:75160435176:web:ffb4d374d9d51993e2cc5d",
+  measurementId: "G-NWDKP4TQCP"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
-export const auth = getAuth(firebaseApp);
+export const auth = getAuth(firebaseApp); // Export auth -> module khác dùng được
 const db = getFirestore(firebaseApp);
 
 function validateCredentials(email, password) {
@@ -39,7 +41,7 @@ function validateCredentials(email, password) {
     throw new Error("Mật khẩu phải có ít nhất 6 ký tự.");
   }
 }
-
+// Hàm chuyển thông báo lỗi firebase thành thông báo thân thiện -> fallback là Đăng nhập thất bại
 function friendlyError(error) {
   const messages = {
     "auth/invalid-credential": "Email hoặc mật khẩu không đúng.",
@@ -60,13 +62,13 @@ export async function login(email, password) {
   validateCredentials(email, password);
 
   try {
-    await setPersistence(auth, browserLocalPersistence);
+    await setPersistence(auth, browserLocalPersistence); // Để refresh không bị log out
     const result = await signInWithEmailAndPassword(
       auth,
       String(email).trim().toLowerCase(),
       password
     );
-
+    // Kết quả là UserCredential -> extract user trong đó ra 
     return result.user;
   } catch (error) {
     throw friendlyError(error);

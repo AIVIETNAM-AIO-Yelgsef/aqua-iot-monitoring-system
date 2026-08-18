@@ -89,7 +89,6 @@
                 <option value="6">6 giờ</option>
                 <option value="24" selected>24 giờ</option>
                 <option value="168">7 ngày</option>
-                <option value="720">30 ngày</option>
             </select>
 
             <button id="load-history-button" type="button">
@@ -117,8 +116,8 @@
 
             <table>
                 <thead>
-                    <tr>
-                        <th>Thời gian</th>
+                    <tr> <!-- table row -->
+                        <th>Thời gian</th> <!-- table header cell-->
                         <th>Nhiệt độ</th>
                         <th>pH</th>
                         <th>Relay</th>
@@ -147,7 +146,7 @@
             maxlength="500"
             rows="3"
             required
-            placeholder="Ví dụ: Nhiệt độ hiện tại có bình thường không?"
+            placeholder="Ví dụ: Nhiệt độ hiện tại là gì?"
         ></textarea>
 
         <button id="chat-send-button" type="submit">

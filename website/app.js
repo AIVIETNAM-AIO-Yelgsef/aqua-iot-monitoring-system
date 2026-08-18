@@ -14,7 +14,7 @@ const logoutButton = document.getElementById("logout-button");
 let initialized = false;
 
 loginForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
+    event.preventDefault(); // Bình thường sẽ reload hoặc chuyển trang nên ngăn chặn việc đó để js xử lý
     loginError.textContent = "";
     try {
         await login(
@@ -47,23 +47,25 @@ registerForm.addEventListener("submit", async (event) => {
 });
 
 logoutButton.addEventListener("click", async () => {
-    logoutButton.disabled = true;
+    logoutButton.disabled = true; // Disable để user không click nhiều lần 
     try {
         await logout();
-    } finally {
-        logoutButton.disabled = false;
+    } finally { // Dù logout có lỗi hay không thì vẫn chạy 
+        logoutButton.disabled = false; // logout xong enable lại 
     }
 });
 
+// Theo dõi trạng thái đăng nhập, mỗi khi thay đổi thì kiểm tra trạng thái User
 watchAuth((user) => {
     const loggedIn = Boolean(user);
     loginScreen.hidden = loggedIn;
     appShell.hidden = !loggedIn;
 
-    if (!loggedIn || initialized) return;
+    if (!loggedIn || initialized) return; // User chưa login hay dashboard chưa khởi tạo
 
     const monitoring = initMonitoring();
 
+    // Sau khi Relay xử lý xong thì refresh
     initRelayControl({ refreshDashboard: monitoring.loadDashboard });
     initCloudHistory();
     initChatbot();

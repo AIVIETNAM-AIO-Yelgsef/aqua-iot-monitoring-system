@@ -18,4 +18,5 @@ nodered/secrect/
 nodered/service-account.json
 nodered/*.log
 nodered/*.backup
-
+nodered/.config*
+nodered/.flows*
