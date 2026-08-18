@@ -9,9 +9,13 @@ import {
   setPersistence,
   browserLocalPersistence,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut
 } from
   "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+
+import { getFirestore, doc, setDoc, serverTimestamp } from
+  "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC3E8PH_A2wx2S26MsZTTkUAe79FqH_e0U",
@@ -24,6 +28,7 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
 
 function validateCredentials(email, password) {
   if (!String(email || "").trim()) {
@@ -62,6 +67,29 @@ export async function login(email, password) {
       password
     );
 
+    return result.user;
+  } catch (error) {
+    throw friendlyError(error);
+  }
+}
+
+export async function register(email, password, displayName = "") {
+  validateCredentials(email, password);
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+    const result = await createUserWithEmailAndPassword(
+      auth,
+      String(email).trim().toLowerCase(),
+      password
+    );
+    await setDoc(doc(db, "users", result.user.uid), {
+      uid: result.user.uid,
+      email: result.user.email,
+      displayName: String(displayName || "").trim(),
+      deviceId: "aqua_device_01",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
     return result.user;
   } catch (error) {
     throw friendlyError(error);

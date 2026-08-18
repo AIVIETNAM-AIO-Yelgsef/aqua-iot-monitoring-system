@@ -2,100 +2,112 @@
 
 const fs = require("fs");
 const path = require("path");
+const {
+    initializeApp,
+    cert,
+    getApps
+} = require("firebase-admin/app");
 
-function createFirebaseService(ctx) {
-  const { config, envBoolean, errorCode, runtime } = ctx;
+const {
+    getFirestore,
+    Timestamp,
+    FieldValue
+} = require("firebase-admin/firestore");
 
-function firebaseCredentials() {
-  const inline = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (inline && inline.trim()) {
-    const parsed = JSON.parse(inline);
-    if (!parsed || typeof parsed !== "object" || !parsed.project_id || !parsed.client_email || !parsed.private_key) {
-      throw new Error("INVALID_SERVICE_ACCOUNT_JSON");
+let firestore = null;
+
+function initializeFirestore() {
+    if (firestore) {
+        return firestore;
     }
-    return { kind: "cert", value: parsed };
-  }
 
-  const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-  if (filePath && filePath.trim()) {
-    const parsed = JSON.parse(fs.readFileSync(path.resolve(filePath), "utf8"));
-    if (!parsed || typeof parsed !== "object" || !parsed.project_id || !parsed.client_email || !parsed.private_key) {
-      throw new Error("INVALID_SERVICE_ACCOUNT_FILE");
+    const configuredPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+
+    if (!configuredPath) {
+        throw new Error("Chưa cấu hình FIREBASE_SERVICE_ACCOUNT_PATH");
     }
-    return { kind: "cert", value: parsed };
-  }
 
-  if (process.env.GOOGLE_APPLICATION_CREDENTIALS || envBoolean("FIREBASE_USE_APPLICATION_DEFAULT", false)) {
-    return { kind: "application-default", value: null };
-  }
-  return null;
-}
-
-function initializeFirebase() {
-  let credentials;
-  try {
-    credentials = firebaseCredentials();
-  } catch (error) {
-    runtime.firebaseLastError = errorCode(error, "FIREBASE_CREDENTIALS_INVALID");
-    console.warn("[AquaServices] Firebase Admin credentials are invalid; local persistence remains active.");
-    return;
-  }
-  if (!credentials) return;
-
-  try {
-    const {
-      applicationDefault,
-      cert,
-      getApps,
-      initializeApp
-    } = require("firebase-admin/app");
-    const { getFirestore } = require("firebase-admin/firestore");
-    const { getAuth } = require("firebase-admin/auth");
-    const appName = "aqua-iot-backend";
-    let app = getApps().find(item => item && item.name === appName);
-    if (!app) {
-      const options = {};
-      if (credentials.kind === "cert") {
-        options.credential = cert(credentials.value);
-        options.projectId = credentials.value.project_id;
-      } else {
-        options.credential = applicationDefault();
-        if (process.env.FIREBASE_PROJECT_ID) options.projectId = process.env.FIREBASE_PROJECT_ID;
-      }
-      app = initializeApp(options, appName);
+    let serviceAccountPath = path.resolve(__dirname, "..", configuredPath);
+    if (!fs.existsSync(serviceAccountPath)) {
+        serviceAccountPath = path.resolve(__dirname, "..", "service-account.json");
     }
-    runtime.firestore = getFirestore(app);
-    runtime.firestore.settings({ ignoreUndefinedProperties: true });
-    runtime.firebaseAuth = getAuth(app);
-    runtime.firebaseReady = true;
-    runtime.firebaseLastError = null;
-  } catch (error) {
-    runtime.firebaseLastError = errorCode(error, "FIREBASE_INIT_FAILED");
-    runtime.firestore = null;
-    runtime.firebaseAuth = null;
-    runtime.firebaseReady = false;
-    console.warn(`[AquaServices] Firebase Admin unavailable (${runtime.firebaseLastError}); local persistence remains active.`);
-  }
+
+    const serviceAccount = JSON.parse(
+        fs.readFileSync(serviceAccountPath, "utf8")
+    );
+
+    if (getApps().length === 0) {
+        initializeApp({
+            credential: cert(serviceAccount)
+        });
+    }
+
+    firestore = getFirestore();
+    return firestore;
 }
 
-initializeFirebase();
+async function saveTelemetry(telemetry) {
+    const database = initializeFirestore();
+    const receivedAt = new Date(telemetry.receivedAt);
 
+    if (Number.isNaN(receivedAt.getTime())) {
+        throw new Error("receivedAt không hợp lệ");
+    }
 
-async function firestoreSet(collection, documentId, value, merge = false) {
-  if (!runtime.firestore) return false;
-  try {
-    await runtime.firestore.collection(collection).doc(documentId).set(value, { merge });
-    runtime.firebaseLastError = null;
-    return true;
-  } catch (error) {
-    runtime.firebaseLastError = errorCode(error, "FIRESTORE_WRITE_FAILED");
-    console.warn(`[AquaServices] Firestore write failed (${runtime.firebaseLastError}); local fallback was kept.`);
-    return false;
-  }
+    const document = {
+        deviceId: telemetry.deviceId,
+        temperature: telemetry.temperature,
+        ph: telemetry.ph,
+        relayOn: telemetry.relayOn,
+        receivedAt: Timestamp.fromDate(receivedAt),
+        createdAt: FieldValue.serverTimestamp()
+    };
+
+    const reference = await database
+        .collection("aquaTelemetry")
+        .add(document);
+
+    return {
+        id: reference.id,
+        ...telemetry
+    };
 }
 
+async function readTelemetryHistory({ hours = 24, limit = 360 } = {}) {
+    const database = initializeFirestore();
 
-  return { firestoreSet };
+    const fromDate = new Date(
+        Date.now() - hours * 60 * 60 * 1000
+    );
+
+    const snapshot = await database
+        .collection("aquaTelemetry")
+        .where(
+            "receivedAt",
+            ">=",
+            Timestamp.fromDate(fromDate)
+        )
+        .orderBy("receivedAt", "desc")
+        .limit(limit)
+        .get();
+
+    const history = snapshot.docs.map((document) => {
+        const data = document.data();
+
+        return {
+            id: document.id,
+            deviceId: data.deviceId,
+            temperature: data.temperature,
+            ph: data.ph,
+            relayOn: data.relayOn,
+            receivedAt: data.receivedAt.toDate().toISOString()
+        };
+    });
+
+    return history.reverse();
 }
 
-module.exports = { createFirebaseService };
+module.exports = {
+    saveTelemetry,
+    readTelemetryHistory
+};

@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080">
+  <title>Sơ đồ đi dây Aqua IoT - ESP32 38 chân</title>
+  <desc>Sơ đồ kết nối DS18B20, cảm biến pH, cảm biến độ đục, OLED, LED và relay với ESP32.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f7fafc}.panel{fill:#fff;stroke:#cbd5e1;stroke-width:2}.title{font:700 30px Arial,sans-serif;fill:#12344a}.subtitle{font:16px Arial,sans-serif;fill:#526b78}.h2{font:700 20px Arial,sans-serif;fill:#12344a}.label{font:15px Arial,sans-serif;fill:#294b59}.small{font:13px Arial,sans-serif;fill:#526b78}.tiny{font:12px Arial,sans-serif;fill:#526b78}.pin{font:700 14px Arial,sans-serif;fill:#12344a}.esp{fill:#202b35;stroke:#0f1720;stroke-width:3}.esptext{font:700 20px Arial,sans-serif;fill:#fff}.module{fill:#e8f5f3;stroke:#16847c;stroke-width:2}.sensor{fill:#eef4fb;stroke:#3973a8;stroke-width:2}.power{fill:#fff1df;stroke:#d88a20;stroke-width:2}.warn{fill:#fff0f0;stroke:#d9534f;stroke-width:2}.wire-gnd{stroke:#202b35;stroke-width:4;fill:none}.wire-3v3{stroke:#16847c;stroke-width:4;fill:none}.wire-5v{stroke:#d88a20;stroke-width:4;fill:none}.wire-signal{stroke:#2d6cdf;stroke-width:4;fill:none}.wire-led{stroke:#b347b7;stroke-width:4;fill:none}.wire-relay{stroke:#e05252;stroke-width:4;fill:none}.dot{stroke:#fff;stroke-width:2}.res{fill:#f2d59c;stroke:#8a5b15;stroke-width:2}.arrow{marker-end:url(#arrow)}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" fill="#526b78"/></marker>
+  </defs>
+
+  <rect class="bg" width="1600" height="1080"/>
+  <text class="title" x="54" y="58">AQUA IoT — SƠ ĐỒ ĐI DÂY</text>
+  <text class="subtitle" x="55" y="87">ESP32 Dev Module 38 chân • theo firmware hiện tại • tất cả GND phải nối chung</text>
+
+  <!-- ESP32 -->
+  <rect class="esp" x="630" y="180" width="340" height="650" rx="22"/>
+  <text class="esptext" x="715" y="222">ESP32 38 PIN</text>
+  <text class="small" x="704" y="248" fill="#b8c6cf">USB dùng để cấp nguồn / nạp code</text>
+  <rect x="655" y="275" width="290" height="495" rx="14" fill="#2c3a46" stroke="#607482"/>
+  <text class="pin" x="675" y="308" fill="#9ae6df">NGUỒN</text>
+  <text class="small" x="675" y="335" fill="#fff">3V3  → OLED, DS18B20</text>
+  <text class="small" x="675" y="360" fill="#fff">VIN/5V → module pH, độ đục, relay</text>
+  <text class="small" x="675" y="385" fill="#fff">GND → rail GND chung</text>
+  <line x1="675" y1="405" x2="925" y2="405" stroke="#607482"/>
+  <text class="pin" x="675" y="438" fill="#9ae6df">CHÂN TÍN HIỆU</text>
+  <text class="small" x="675" y="468" fill="#fff">GPIO13  DS18B20 DAT</text>
+  <text class="small" x="675" y="494" fill="#fff">GPIO34  pH sau cầu chia áp</text>
+  <text class="small" x="675" y="520" fill="#fff">GPIO35  AO độ đục sau cầu chia áp</text>
+  <text class="small" x="675" y="546" fill="#fff">GPIO22  OLED SDA</text>
+  <text class="small" x="675" y="572" fill="#fff">GPIO23  OLED SCL</text>
+  <text class="small" x="675" y="598" fill="#fff">GPIO18  LED xanh qua 330Ω</text>
+  <text class="small" x="675" y="624" fill="#fff">GPIO19  LED đỏ qua 330Ω</text>
+  <text class="small" x="675" y="650" fill="#fff">GPIO26  Relay IN</text>
+  <line x1="675" y1="675" x2="925" y2="675" stroke="#607482"/>
+  <text class="tiny" x="675" y="704" fill="#ffdf9d">ADC GPIO34/35 chỉ nhận tối đa 3,3V</text>
+  <text class="tiny" x="675" y="727" fill="#ffdf9d">Không cấp tín hiệu module 5V trực tiếp</text>
+
+  <!-- left modules -->
+  <rect class="module" x="70" y="180" width="430" height="155" rx="16"/>
+  <text class="h2" x="95" y="215">DS18B20 — nhiệt độ</text>
+  <text class="label" x="95" y="250">VDD → 3V3</text><text class="label" x="95" y="278">GND → GND</text><text class="label" x="95" y="306">DAT → GPIO13</text>
+  <rect class="res" x="340" y="263" width="85" height="25" rx="5"/><text class="tiny" x="353" y="280">4,7 kΩ</text>
+  <path class="wire-3v3 arrow" d="M300 250 C365 230 395 230 382 263"/><path class="wire-signal arrow" d="M425 276 C520 276 550 466 675 466"/>
+  <text class="tiny" x="430" y="253">điện trở kéo lên 3V3</text>
+  <path class="wire-gnd" d="M160 278 C160 330 190 340 190 365"/><path class="wire-3v3" d="M115 250 C90 250 85 365 130 365"/>
+
+  <rect class="sensor" x="70" y="385" width="430" height="245" rx="16"/>
+  <text class="h2" x="95" y="420">Module pH</text>
+  <text class="label" x="95" y="452">VCC → 5V / VIN</text><text class="label" x="95" y="480">GND → GND chung</text><text class="label" x="95" y="508">PO → cầu chia áp → GPIO34</text>
+  <rect class="res" x="145" y="536" width="80" height="25" rx="5"/><text class="tiny" x="157" y="553">20 kΩ</text>
+  <rect class="res" x="315" y="584" width="80" height="25" rx="5"/><text class="tiny" x="328" y="601">4,7 kΩ</text>
+  <circle cx="270" cy="548" r="7" fill="#2d6cdf" class="dot"/><text class="tiny" x="250" y="575">nút ADC</text>
+  <path class="wire-5v arrow" d="M95 452 C45 452 45 930 585 930"/>
+  <path class="wire-gnd" d="M95 480 C35 480 35 965 585 965"/>
+  <path class="wire-signal" d="M215 548 L263 548 M277 548 L675 494"/>
+  <path class="wire-gnd" d="M270 555 C270 610 340 610 355 584"/>
+  <text class="tiny" x="95" y="620">PO — 20kΩ — ● — GPIO34</text><text class="tiny" x="250" y="636">             │</text><text class="tiny" x="250" y="652">            4,7kΩ → GND</text>
+
+  <rect class="sensor" x="70" y="680" width="430" height="245" rx="16"/>
+  <text class="h2" x="95" y="715">Module độ đục TS-300B</text>
+  <text class="label" x="95" y="747">VCC → 5V / VIN</text><text class="label" x="95" y="775">GND → GND chung</text><text class="label" x="95" y="803">AO → cầu chia áp → GPIO35</text>
+  <rect class="res" x="145" y="831" width="80" height="25" rx="5"/><text class="tiny" x="157" y="848">20 kΩ</text>
+  <rect class="res" x="315" y="879" width="80" height="25" rx="5"/><text class="tiny" x="328" y="896">4,7 kΩ</text>
+  <circle cx="270" cy="843" r="7" fill="#2d6cdf" class="dot"/><text class="tiny" x="250" y="870">nút ADC</text>
+  <path class="wire-signal" d="M215 843 L263 843 M277 843 L675 520"/>
+  <path class="wire-gnd" d="M270 850 C270 905 340 905 355 879"/>
+  <text class="tiny" x="95" y="913">AO — 20kΩ — ● — GPIO35 — 4,7kΩ → GND</text>
+
+  <!-- right modules -->
+  <rect class="module" x="1080" y="180" width="430" height="210" rx="16"/>
+  <text class="h2" x="1105" y="215">OLED SSD1306 I²C (0x3C)</text>
+  <text class="label" x="1105" y="252">VCC → 3V3</text><text class="label" x="1105" y="281">GND → GND</text><text class="label" x="1105" y="310">SDA → GPIO22</text><text class="label" x="1105" y="339">SCL → GPIO23</text>
+  <path class="wire-3v3 arrow" d="M1080 252 C1035 252 1015 345 945 345"/><path class="wire-gnd" d="M1080 281 C1045 281 1035 365 945 385"/><path class="wire-signal arrow" d="M1080 310 C1025 310 1015 545 945 545"/><path class="wire-signal arrow" d="M1080 339 C1020 339 1010 572 945 572"/>
+
+  <rect class="power" x="1080" y="430" width="430" height="175" rx="16"/>
+  <text class="h2" x="1105" y="465">2 LED báo trạng thái</text>
+  <text class="label" x="1105" y="500">GPIO18 → 330Ω → LED xanh → GND</text>
+  <text class="label" x="1105" y="535">GPIO19 → 330Ω → LED đỏ → GND</text>
+  <text class="small" x="1105" y="575">Không nối LED trực tiếp vào GPIO.</text>
+  <path class="wire-led arrow" d="M1080 500 C1015 500 1005 598 945 598"/><path class="wire-led arrow" d="M1080 535 C1015 535 1005 624 945 624"/>
+
+  <rect class="warn" x="1080" y="650" width="430" height="230" rx="16"/>
+  <text class="h2" x="1105" y="685">Relay 1 kênh — jumper H</text>
+  <text class="label" x="1105" y="720">DC+ / VCC → 5V</text><text class="label" x="1105" y="748">DC− / GND → GND chung</text><text class="label" x="1105" y="776">IN → GPIO26</text>
+  <text class="small" x="1105" y="815">H = kích mức HIGH. Tải ngoài nối ở COM/NO/NC.</text>
+  <text class="tiny" x="1105" y="842">Không đưa điện lưới vào breadboard hoặc ESP32.</text>
+  <path class="wire-5v arrow" d="M1080 720 C1030 720 1015 345 945 345"/><path class="wire-gnd" d="M1080 748 C1035 748 1020 385 945 385"/><path class="wire-relay arrow" d="M1080 776 C1015 776 1005 650 945 650"/>
+
+  <!-- common rails -->
+  <path class="wire-5v" d="M585 930 H1515"/><path class="wire-gnd" d="M585 965 H1515"/>
+  <text class="label" x="590" y="920">RAIL 5V / VIN</text><text class="label" x="590" y="995">RAIL GND CHUNG</text>
+  <circle cx="585" cy="930" r="7" fill="#d88a20" class="dot"/><circle cx="585" cy="965" r="7" fill="#202b35" class="dot"/>
+
+  <!-- legend -->
+  <rect class="panel" x="70" y="970" width="430" height="80" rx="12"/>
+  <text class="h2" x="92" y="1000">Chú giải</text>
+  <line class="wire-3v3" x1="185" y1="995" x2="235" y2="995"/><text class="tiny" x="245" y="1000">3V3</text>
+  <line class="wire-5v" x1="295" y1="995" x2="345" y2="995"/><text class="tiny" x="355" y="1000">5V</text>
+  <line class="wire-gnd" x1="390" y1="995" x2="440" y2="995"/><text class="tiny" x="450" y="1000">GND</text>
+  <line class="wire-signal" x1="185" y1="1025" x2="235" y2="1025"/><text class="tiny" x="245" y="1030">tín hiệu/ADC</text>
+  <line class="wire-led" x1="345" y1="1025" x2="395" y2="1025"/><text class="tiny" x="405" y="1030">LED</text>
+
+  <text class="small" x="1080" y="930">An toàn: tắt USB trước khi sửa dây. Kiểm tra đúng cực VCC/GND.</text>
+  <text class="small" x="1080" y="953">Cầu chia áp: module → 20 kΩ → chân ADC → 4,7 kΩ → GND.</text>
+</svg>

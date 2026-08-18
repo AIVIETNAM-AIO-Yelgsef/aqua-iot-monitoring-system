@@ -150,7 +150,7 @@ async function loadHistory() {
 
     try {
         const response = await apiFetch(
-            `/api/history?hours=${hours}&limit=100`
+            `/api/history?hours=${hours}&limit=5`
         );
 
         const data = await response.json();
@@ -161,9 +161,12 @@ async function loadHistory() {
             );
         }
 
-        historyCountElement.textContent = data.count;
-        renderHistoryCharts(data.history);
-        renderHistoryTable(data.history);
+        const latestFive = Array.isArray(data.history)
+            ? data.history.slice(0, 5)
+            : [];
+        historyCountElement.textContent = latestFive.length;
+        renderHistoryCharts(latestFive);
+        renderHistoryTable(latestFive);
     } catch (error) {
         historyCountElement.textContent = "0";
         renderHistoryCharts([]);

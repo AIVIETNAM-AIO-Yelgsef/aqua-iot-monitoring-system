@@ -18,9 +18,20 @@
             <button type="submit">Đăng nhập</button>
             <p id="login-error"></p>
         </form>
+        <hr>
+        <h2>Đăng ký</h2>
+        <form id="register-form">
+            <input id="register-name" type="text" placeholder="Họ tên">
+            <input id="register-email" type="email" placeholder="Email" required>
+            <input id="register-password" type="password" placeholder="Mật khẩu" required>
+            <input id="register-password-confirm" type="password" placeholder="Nhập lại mật khẩu" required>
+            <button type="submit">Tạo tài khoản</button>
+            <p id="register-error"></p>
+        </form>
     </section>
 
     <main id="app-shell" hidden>
+        <button id="logout-button" type="button">Đăng xuất</button>
         <h1>Aqua IoT Monitoring System</h1>
 
         <section>

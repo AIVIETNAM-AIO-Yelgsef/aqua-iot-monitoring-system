@@ -1,0 +1,39 @@
+◇ injected env (6) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+18 Aug 12:56:43 - [info] 
+
+Welcome to Node-RED
+===================
+
+18 Aug 12:56:43 - [info] Node-RED version: v5.0.4
+18 Aug 12:56:43 - [info] Node.js  version: v24.18.0
+18 Aug 12:56:43 - [info] Windows_NT 10.0.26200 x64 LE
+18 Aug 12:56:43 - [info] Loading palette nodes
+18 Aug 12:56:43 - [info] Settings file  : D:\học\Vật lý cho Công nghệ thông tin - 24C03\Đồ án cuối kì\hệ thống IoT giám sát nhiệt độ và độ pH của nước hồ cá\nodered\settings.js
+18 Aug 12:56:43 - [info] HTTP Static    : D:\học\Vật lý cho Công nghệ thông tin - 24C03\Đồ án cuối kì\hệ thống IoT giám sát nhiệt độ và độ pH của nước hồ cá\website > /
+18 Aug 12:56:43 - [info] Context store  : 'default' [module=memory]
+18 Aug 12:56:43 - [info] User directory : D:\học\Vật lý cho Công nghệ thông tin - 24C03\Đồ án cuối kì\hệ thống IoT giám sát nhiệt độ và độ pH của nước hồ cá\nodered
+18 Aug 12:56:43 - [warn] Projects disabled : editorTheme.projects.enabled=false
+18 Aug 12:56:43 - [info] Flows file     : D:\học\Vật lý cho Công nghệ thông tin - 24C03\Đồ án cuối kì\hệ thống IoT giám sát nhiệt độ và độ pH của nước hồ cá\nodered\flows.json
+18 Aug 12:56:43 - [info] Server now running at http://127.0.0.1:1880/red/
+18 Aug 12:56:43 - [warn] 
+
+---------------------------------------------------------------------
+Your flow credentials file is encrypted using a system-generated key.
+
+If the system-generated key is lost for any reason, your credentials
+file will not be recoverable, you will have to delete it and re-enter
+your credentials.
+
+You should set your own key using the 'credentialSecret' option in
+your settings file. Node-RED will then re-encrypt your credentials
+file using your chosen key the next time you deploy a change.
+---------------------------------------------------------------------
+
+18 Aug 12:56:43 - [info] Starting flows
+18 Aug 12:56:43 - [info] Started flows
+18 Aug 12:56:44 - [info] [mqtt-broker:HiveMQ Public] Connected to broker: nodered-aqua-nhom18@mqtt://broker.hivemq.com:1883
+18 Aug 13:01:52 - [error] [function:Read Telemetry History] Không thể đọc lịch sử Firestore: ENOENT: no such file or directory, open 'D:\học\Vật lý cho Công nghệ thông tin - 24C03\Đồ án cuối kì\hệ thống IoT giám sát nhiệt độ và độ pH của nước hồ cá\secrets\firebase-service-account.json'
+18 Aug 13:02:09 - [error] [function:Read Telemetry History] Không thể đọc lịch sử Firestore: ENOENT: no such file or directory, open 'D:\học\Vật lý cho Công nghệ thông tin - 24C03\Đồ án cuối kì\hệ thống IoT giám sát nhiệt độ và độ pH của nước hồ cá\secrets\firebase-service-account.json'
+18 Aug 13:29:55 - [error] [function:Read Telemetry History] Không thể đọc lịch sử Firestore: ENOENT: no such file or directory, open 'D:\học\Vật lý cho Công nghệ thông tin - 24C03\Đồ án cuối kì\hệ thống IoT giám sát nhiệt độ và độ pH của nước hồ cá\secrets\firebase-service-account.json'
+18 Aug 13:36:57 - [info] [mqtt-broker:HiveMQ Public] Disconnected from broker: nodered-aqua-nhom18@mqtt://broker.hivemq.com:1883
+18 Aug 13:37:33 - [info] [mqtt-broker:HiveMQ Public] Connected to broker: nodered-aqua-nhom18@mqtt://broker.hivemq.com:1883
