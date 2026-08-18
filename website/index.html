@@ -1,418 +1,153 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Trang quản lý hệ thống IoT giám sát nhiệt độ và độ pH của nước hồ cá.">
-  <meta name="theme-color" content="#0b6f6a">
-  <title>Aqua IoT — Quản lý chất lượng nước</title>
-  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Aqua IoT</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <svg class="svg-sprite" aria-hidden="true">
-    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
-    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l2.3-6 4.2 12 2.2-6H21"/></symbol>
-    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
-    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4"/></symbol>
-    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9.8 21h4.4"/></symbol>
-    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h9a4 4 0 0 1 4 4z"/><path d="M8 9h8M8 13h5"/></symbol>
-    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .4 2l.1.1-2.8 2.8-.1-.1a1.8 1.8 0 0 0-2-.4 1.8 1.8 0 0 0-1 1.7v.2h-4V21a1.8 1.8 0 0 0-1-1.7 1.8 1.8 0 0 0-2 .4l-.1.1-2.8-2.8.1-.1a1.8 1.8 0 0 0 .4-2A1.8 1.8 0 0 0 3 14H2.8v-4H3a1.8 1.8 0 0 0 1.7-1 1.8 1.8 0 0 0-.4-2l-.1-.1L7 4.1l.1.1a1.8 1.8 0 0 0 2 .4A1.8 1.8 0 0 0 10 3V2.8h4V3a1.8 1.8 0 0 0 1 1.7 1.8 1.8 0 0 0 2-.4l.1-.1L20 7l-.1.1a1.8 1.8 0 0 0-.4 2 1.8 1.8 0 0 0 1.7 1h.2v4h-.2a1.8 1.8 0 0 0-1.8 1Z"/></symbol>
-    <symbol id="i-water" viewBox="0 0 24 24"><path d="M12 2S5 9.2 5 15a7 7 0 0 0 14 0c0-5.8-7-13-7-13Z"/><path d="M8.5 16.2c.5 1.8 1.8 2.7 3.7 2.8"/></symbol>
-    <symbol id="i-thermometer" viewBox="0 0 24 24"><path d="M14 14.8V5a4 4 0 0 0-8 0v9.8a6 6 0 1 0 8 0Z"/><path d="M10 7v9"/></symbol>
-    <symbol id="i-wind" viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h7"/></symbol>
-    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H6a4 4 0 0 1-.4-8A7 7 0 0 1 19 9a5 5 0 0 1-1.5 10Z"/><path d="m9 14 2 2 4-4"/></symbol>
-    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M5 12.6a10 10 0 0 1 14 0M2 9.2a15 15 0 0 1 20 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="1" class="fill-icon"/></symbol>
-    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
-    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
-    <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
-    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/></symbol>
-    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 7v6l-4 2v-8Z"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
-    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></symbol>
-    <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-9 20-2-9-9-2Z"/><path d="M22 2 11 13"/></symbol>
-    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
-    <symbol id="i-log-out" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></symbol>
-    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
-    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
-    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.5 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.5a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
-    <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
-    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></symbol>
-    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 8a7 7 0 0 1 11.5-2L20 8M4 16l2.4 2a7 7 0 0 0 11.5-2"/></symbol>
-    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-9 9"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
-    <symbol id="i-cube" viewBox="0 0 24 24"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 7 9 5 9-5M3 7v10l9 5 9-5V7M12 12v10"/></symbol>
-    <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.2 8A7 7 0 0 1 18 6l2 2M4 16l2 2a7 7 0 0 0 11.8-2"/></symbol>
-    <symbol id="i-ruler" viewBox="0 0 24 24"><path d="m4 17 13-13 3 3L7 20H4v-3Z"/><path d="m13 8 3 3m-6 0 2 2m-5 1 2 2"/></symbol>
-    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/></symbol>
-    <symbol id="i-zoom" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 5 5M7.5 10.5h6m-3-3v6"/></symbol>
-    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M8 12h8v3a4 4 0 0 1-4 4 4 4 0 0 1-4-4v-3ZM10 3v9m4-9v9M12 19v3"/></symbol>
-  </svg>
-
-  <section class="auth-screen" id="auth-screen" aria-label="Xác thực">
-    <div class="auth-showcase">
-      <div class="showcase-orb orb-one"></div>
-      <div class="showcase-orb orb-two"></div>
-      <div class="auth-brand">
-        <span class="brand-mark brand-mark-light"><svg><use href="#i-water"/></svg></span>
-        <span>Aqua IoT</span>
-      </div>
-      <div class="auth-copy">
-        <span class="eyebrow-light">HỆ THỐNG NHÓM 18</span>
-        <h1>Chăm hồ cá chủ động hơn, từ bất cứ đâu.</h1>
-        <p>Giám sát chất lượng nước theo thời gian thực, cảnh báo sớm bất thường và điều khiển máy sủi từ xa.</p>
-        <div class="auth-feature-list">
-          <span><svg><use href="#i-activity"/></svg> Theo dõi pH &amp; nhiệt độ</span>
-          <span><svg><use href="#i-bell"/></svg> Cảnh báo Telegram</span>
-          <span><svg><use href="#i-wind"/></svg> Điều khiển máy sủi</span>
-        </div>
-      </div>
-      <div class="showcase-school">
-        <img src="assets/logo-hcmus.png" alt="Logo Trường Đại học Khoa học Tự nhiên">
-        <div><strong>Đại học Khoa học Tự nhiên</strong><span>ĐHQG–HCM · Khoa Công nghệ Thông tin</span></div>
-      </div>
-    </div>
-
-    <div class="auth-panel">
-      <div class="auth-card">
-        <div class="mobile-auth-brand">
-          <span class="brand-mark"><svg><use href="#i-water"/></svg></span><strong>Aqua IoT</strong>
-        </div>
-        <div class="demo-notice"><span class="status-dot"></span> Đang kiểm tra Node-RED, MQTT và ESP32...</div>
-        <div class="auth-tabs" role="tablist" aria-label="Chọn hình thức xác thực">
-          <button class="auth-tab active" type="button" data-auth-tab="login" role="tab" aria-selected="true">Đăng nhập</button>
-          <button class="auth-tab" type="button" data-auth-tab="register" role="tab" aria-selected="false">Đăng ký</button>
-        </div>
-
-        <form class="auth-form active" id="login-form" data-auth-form="login">
-          <div class="form-heading"><h2>Chào mừng trở lại</h2><p>Đăng nhập để truy cập trang quản lý hồ cá.</p></div>
-          <label class="field"><span>Email</span><span class="input-wrap"><svg><use href="#i-user"/></svg><input id="login-email" name="email" type="email" autocomplete="email" placeholder="tenban@email.com" required></span></label>
-          <label class="field"><span>Mật khẩu</span><span class="input-wrap"><svg><use href="#i-lock"/></svg><input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" minlength="6" required><button class="password-toggle" type="button" aria-label="Hiện mật khẩu"><svg><use href="#i-eye"/></svg></button></span></label>
-          <div class="form-options"><label class="check-label"><input type="checkbox" id="remember-me" checked><span></span> Ghi nhớ đăng nhập</label><button type="button" class="text-button" id="forgot-password">Quên mật khẩu?</button></div>
-          <button class="primary-button full" type="submit">Đăng nhập <svg><use href="#i-chevron"/></svg></button>
-          <div class="or-divider"><span>hoặc</span></div>
-          <button class="demo-button" type="button" id="demo-login"><span class="demo-avatar">L</span><span><strong>Vào chế độ cục bộ</strong><small>Dùng khi chưa cấu hình Firebase</small></span><svg><use href="#i-chevron"/></svg></button>
+    <section id="login-screen">
+        <h1>Đăng nhập Aqua IoT</h1>
+        <form id="login-form">
+            <input id="login-email" type="email" placeholder="Email" required>
+            <input id="login-password" type="password" placeholder="Mật khẩu" required>
+            <button type="submit">Đăng nhập</button>
+            <p id="login-error"></p>
         </form>
+    </section>
 
-        <form class="auth-form" id="register-form" data-auth-form="register">
-          <div class="form-heading"><h2>Tạo tài khoản</h2><p>Dùng Firebase Authentication khi đã cấu hình dự án.</p></div>
-          <label class="field"><span>Họ và tên</span><span class="input-wrap"><svg><use href="#i-user"/></svg><input name="name" type="text" autocomplete="name" placeholder="Nguyễn Văn A" minlength="2" required></span></label>
-          <label class="field"><span>Email</span><span class="input-wrap"><svg><use href="#i-user"/></svg><input name="email" type="email" autocomplete="email" placeholder="tenban@email.com" required></span></label>
-          <label class="field"><span>Mật khẩu</span><span class="input-wrap"><svg><use href="#i-lock"/></svg><input name="password" type="password" autocomplete="new-password" placeholder="Tối thiểu 6 ký tự" minlength="6" required><button class="password-toggle" type="button" aria-label="Hiện mật khẩu"><svg><use href="#i-eye"/></svg></button></span></label>
-          <label class="field"><span>Mã định danh thiết bị</span><span class="input-wrap"><svg><use href="#i-cpu"/></svg><input name="deviceId" type="text" autocomplete="off" spellcheck="false" placeholder="Ví dụ: aqua-20500de64424" minlength="6" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9-]{5,63}" required></span><small>Nhập mã hiển thị trên ESP32 khi cấu hình Wi‑Fi. Mỗi mã chỉ liên kết được với một tài khoản.</small></label>
-          <label class="check-label policy"><input type="checkbox" required><span></span> Tôi đồng ý sử dụng hệ thống phục vụ đồ án.</label>
-          <button class="primary-button full" type="submit">Tạo tài khoản <svg><use href="#i-chevron"/></svg></button>
-        </form>
-        <p class="auth-footnote"><svg><use href="#i-lock"/></svg> Firebase ID token được Node-RED kiểm tra trước khi trả dữ liệu.</p>
-      </div>
-    </div>
-  </section>
+    <main id="app-shell" hidden>
+        <h1>Aqua IoT Monitoring System</h1>
 
-  <div class="app-shell hidden" id="app-shell">
-    <div class="sidebar-overlay" id="sidebar-overlay"></div>
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">
-        <span class="brand-mark"><svg><use href="#i-water"/></svg></span>
-        <span><strong>Aqua IoT</strong><small>Water monitoring</small></span>
-        <button class="sidebar-close" id="sidebar-close" type="button" aria-label="Đóng thanh điều hướng"><svg><use href="#i-x"/></svg></button>
-      </div>
+        <section>
+            <h2>Dữ liệu hiện tại</h2>
 
-      <button class="pond-selector" type="button" aria-label="Hồ cá đang quản lý">
-        <span class="pond-icon"><svg><use href="#i-water"/></svg></span>
-        <span><small>Đang quản lý</small><strong>Hồ cá chính</strong></span>
-        <span class="online-mini">Demo</span>
-      </button>
+            <p>
+                Nhiệt độ:
+                <strong id="temperature">--</strong>
+            </p>
 
-      <nav class="main-nav" aria-label="Điều hướng chính">
-        <span class="nav-label">QUẢN LÝ</span>
-        <button class="nav-item active" type="button" data-page="overview"><svg><use href="#i-grid"/></svg><span>Tổng quan</span></button>
-        <button class="nav-item" type="button" data-page="monitoring"><svg><use href="#i-activity"/></svg><span>Giám sát trực tiếp</span><span class="live-pill">LIVE</span></button>
-        <button class="nav-item" type="button" data-page="history"><svg><use href="#i-history"/></svg><span>Lịch sử dữ liệu</span></button>
-        <button class="nav-item" type="button" data-page="devices"><svg><use href="#i-cpu"/></svg><span>Thiết bị</span></button>
-        <span class="nav-label second">HỆ THỐNG</span>
-        <button class="nav-item" type="button" data-page="alerts"><svg><use href="#i-bell"/></svg><span>Cảnh báo</span><span class="nav-count" id="unread-count">2</span></button>
-        <button class="nav-item" type="button" data-page="assistant"><svg><use href="#i-chat"/></svg><span>Trợ lý AI</span></button>
-        <button class="nav-item" type="button" data-page="settings"><svg><use href="#i-settings"/></svg><span>Cài đặt &amp; dự án</span></button>
-      </nav>
+            <p>
+                pH:
+                <strong id="ph">--</strong>
+            </p>
 
-      <div class="sidebar-system-status">
-        <div class="status-head"><span><i></i> Trạng thái hệ thống</span><strong>LIVE</strong></div>
-        <div class="status-bars"><span></span><span></span><span></span></div>
-        <small>ESP32 · MQTT · Firestore</small>
-      </div>
+            <p>
+                Relay:
+                <strong id="relay-status">--</strong>
+            </p>
 
-      <button class="sidebar-user" type="button" data-page="settings">
-        <span class="user-avatar" data-user-initial>DH</span>
-        <span><strong data-user-name>Người dùng</strong><small data-account-mode>Đang xác thực</small></span>
-        <svg><use href="#i-chevron"/></svg>
-      </button>
-    </aside>
+            <p>
+                Thiết bị:
+                <strong id="device-status">--</strong>
+            </p>
 
-    <main class="main-area">
-      <header class="topbar">
-        <div class="topbar-left">
-          <button class="menu-button" id="menu-button" type="button" aria-label="Mở thanh điều hướng"><svg><use href="#i-menu"/></svg></button>
-          <div><span class="breadcrumb">Hồ cá chính <svg><use href="#i-chevron"/></svg> <b id="breadcrumb-page">Tổng quan</b></span><h1 id="page-title">Tổng quan</h1></div>
-        </div>
-        <div class="topbar-actions">
-          <span class="sync-status"><svg><use href="#i-wifi"/></svg><span><strong>Hệ thống Aqua</strong><small id="last-sync-top">Đang chờ ESP32</small></span></span>
-          <span class="topbar-time" id="topbar-time"></span>
-          <button class="icon-button notification-button" id="notification-button" type="button" aria-label="Mở thông báo"><svg><use href="#i-bell"/></svg><i></i></button>
-          <button class="topbar-profile" type="button" data-page="settings" aria-label="Mở hồ sơ"><span class="user-avatar" data-user-initial>ND</span><span><strong data-user-name>Người dùng</strong><small data-account-mode>Đang xác thực</small></span><svg><use href="#i-chevron"/></svg></button>
-        </div>
-        <div class="notification-popover" id="notification-popover" aria-hidden="true">
-          <div class="popover-head"><strong>Thông báo gần đây</strong><button type="button" id="mark-all-read">Đánh dấu đã đọc</button></div>
-          <div id="notification-list"></div>
-          <button class="popover-footer" type="button" data-page="alerts">Xem tất cả cảnh báo <svg><use href="#i-chevron"/></svg></button>
-        </div>
-      </header>
+            <p>
+                Cập nhật:
+                <strong id="updated-at">--</strong>
+            </p>
 
-      <div class="page-container">
-        <section class="page-view active" data-view="overview">
-          <div class="welcome-row">
-            <div><span class="section-kicker">TỔNG QUAN HỆ THỐNG</span><h2>Chào buổi sáng, <span data-user-first-name>bạn</span>!</h2><p>Dưới đây là dữ liệu mới nhất từ hệ thống hồ cá.</p></div>
-            <div class="demo-data-badge"><svg><use href="#i-info"/></svg><span><strong>Đang chờ ESP32</strong><small>MQTT công cộng · namespace Nhóm 18</small></span></div>
-          </div>
-
-          <div class="health-banner">
-            <div class="health-icon"><span><svg><use href="#i-water"/></svg></span><i></i></div>
-            <div class="health-copy"><span class="health-label">TRẠNG THÁI DỮ LIỆU MÔ PHỎNG</span><h3>Hồ cá demo đang ổn định</h3><p>pH và nhiệt độ mô phỏng đều nằm trong ngưỡng demo đã cấu hình.</p></div>
-            <div class="health-score"><div class="score-ring"><span><strong>--</strong><small>/100</small></span></div><span>Chỉ số tổng hợp</span></div>
-            <div class="health-update"><svg><use href="#i-refresh"/></svg><span><small>Cập nhật gần nhất</small><strong id="overview-last-update">Vừa xong</strong></span></div>
-          </div>
-
-          <div class="metric-grid">
-            <article class="metric-card temp-card">
-              <div class="metric-top"><span class="metric-icon"><svg><use href="#i-thermometer"/></svg></span><span class="trend neutral"><svg><use href="#i-activity"/></svg> Ổn định</span></div>
-              <span class="metric-label">Nhiệt độ nước</span><div class="metric-value"><strong data-temperature>--</strong><span>°C</span></div>
-              <div class="range-track"><span style="width:62%"></span><i style="left:62%"></i></div>
-              <div class="metric-footer"><span>Ngưỡng demo: 24–30°C</span><b class="good-status"><i></i> Bình thường</b></div>
-            </article>
-            <article class="metric-card ph-card">
-              <div class="metric-top"><span class="metric-icon"><svg><use href="#i-water"/></svg></span><span class="trend positive"><svg><use href="#i-activity"/></svg> +0.1</span></div>
-              <span class="metric-label">Độ pH</span><div class="metric-value"><strong data-ph>--</strong><span>pH</span></div>
-              <div class="range-track"><span style="width:53%"></span><i style="left:53%"></i></div>
-              <div class="metric-footer"><span>Ngưỡng demo: 6.5–8.0</span><b class="good-status"><i></i> Bình thường</b></div>
-            </article>
-            <article class="metric-card aerator-card">
-              <div class="metric-top"><span class="metric-icon"><svg><use href="#i-wind"/></svg></span><label class="toggle" aria-label="Bật hoặc tắt máy sủi"><input type="checkbox" class="aerator-toggle" checked><span></span></label></div>
-              <span class="metric-label">Máy sủi khí</span><div class="device-state"><strong data-aerator-state>Đang bật</strong><span class="device-wave"><i></i><i></i><i></i><i></i></span></div>
-              <div class="metric-footer"><span>Relay 1 kênh</span><b class="good-status"><i></i> Phản hồi ESP32</b></div>
-            </article>
-            <article class="metric-card cloud-card">
-              <div class="metric-top"><span class="metric-icon"><svg><use href="#i-cloud"/></svg></span><span class="cloud-check"><svg><use href="#i-check"/></svg></span></div>
-              <span class="metric-label">Luồng Cloud dự kiến</span><div class="device-state"><strong>Đang mô phỏng</strong><span class="cloud-pulse"><i></i></span></div>
-              <div class="metric-footer"><span>Firebase Firestore</span><b class="good-status"><i></i> Bản ghi cục bộ</b></div>
-            </article>
-          </div>
-
-          <div class="dashboard-grid">
-            <article class="panel chart-panel">
-              <div class="panel-heading">
-                <div><span class="panel-icon"><svg><use href="#i-activity"/></svg></span><span><h3>Biến động chất lượng nước</h3><p>Nhiệt độ và pH trong 24 giờ gần nhất</p></span></div>
-                <div class="chart-actions"><span class="chart-legend"><i class="temp"></i>Nhiệt độ <i class="ph"></i>pH</span><button class="mini-button" type="button" data-page="history">Xem chi tiết <svg><use href="#i-chevron"/></svg></button></div>
-              </div>
-              <div class="chart-wrap"><canvas id="overview-chart" role="img" aria-label="Biểu đồ nhiệt độ và pH trong 24 giờ"></canvas><div class="chart-tooltip" id="overview-tooltip"></div></div>
-              <div class="chart-axis-labels"><span>°C</span><span>pH</span></div>
-            </article>
-
-            <article class="panel alert-summary-panel">
-              <div class="panel-heading compact"><div><span class="panel-icon alert"><svg><use href="#i-bell"/></svg></span><span><h3>Cảnh báo gần đây</h3><p>Node-RED kiểm tra ngưỡng và gửi Telegram</p></span></div><button class="icon-link" type="button" data-page="alerts" aria-label="Xem mọi cảnh báo"><svg><use href="#i-chevron"/></svg></button></div>
-              <div class="recent-alerts" id="overview-alert-list"></div>
-              <button class="panel-footer-link" type="button" data-page="alerts">Xem toàn bộ lịch sử <svg><use href="#i-chevron"/></svg></button>
-            </article>
-          </div>
-
-          <div class="bottom-grid">
-            <article class="panel quick-control">
-              <div class="quick-control-copy"><span class="panel-icon air"><svg><use href="#i-wind"/></svg></span><div><h3>Điều khiển nhanh máy sủi</h3><p>Lệnh đi qua Web → MQTT → ESP32 → Relay</p></div></div>
-              <div class="control-state"><span><i></i><b data-aerator-state>Đang bật</b></span><small id="aerator-command-time">Cập nhật vừa xong</small></div>
-              <label class="toggle large"><input type="checkbox" class="aerator-toggle" checked><span></span></label>
-            </article>
-            <article class="panel local-feature">
-              <span class="local-feature-icon"><svg><use href="#i-alert"/></svg></span>
-              <div><span class="feature-code">YC1 · TẠI THIẾT BỊ</span><h3>Cảnh báo độ đục cục bộ</h3><p>TS-300B được ESP32 kiểm tra và báo qua LED/OLED; proposal chưa truyền số đo này lên website.</p></div>
-              <button class="mini-button" type="button" data-page="devices">Xem trạng thái thiết bị <svg><use href="#i-chevron"/></svg></button>
-            </article>
-          </div>
+            <p id="api-error"></p>
         </section>
 
-        <section class="page-view" data-view="monitoring">
-          <div class="page-header-row">
-            <div><span class="section-kicker">CB1 · GIÁM SÁT TRỰC TIẾP</span><h2>Dữ liệu cảm biến</h2><p>Theo dõi dữ liệu pH và DS18B20 từ MQTT theo thời gian thực.</p></div>
-            <div class="live-connection"><span><i></i> LIVE</span><small>Cập nhật mỗi 5 giây</small></div>
-          </div>
-          <div class="monitor-hero-grid">
-            <article class="sensor-focus temperature-focus">
-              <div class="focus-icon"><svg><use href="#i-thermometer"/></svg></div>
-              <div class="focus-copy"><span>NHIỆT ĐỘ NƯỚC</span><div><strong data-temperature>--</strong><b>°C</b></div><p><i></i> Ngưỡng 24–30°C</p></div>
-              <div class="focus-gauge"><span style="--value:62%"></span><small>20°C</small><small>34°C</small></div>
-            </article>
-            <article class="sensor-focus ph-focus">
-              <div class="focus-icon"><svg><use href="#i-water"/></svg></div>
-              <div class="focus-copy"><span>ĐỘ pH</span><div><strong data-ph>--</strong><b>pH</b></div><p><i></i> Chờ hiệu chuẩn đầu dò</p></div>
-              <div class="focus-gauge"><span style="--value:53%"></span><small>5.5</small><small>9.0</small></div>
-            </article>
-          </div>
-          <article class="panel live-chart-panel">
-            <div class="panel-heading">
-              <div><span class="panel-icon"><svg><use href="#i-activity"/></svg></span><span><h3>Dòng dữ liệu trực tiếp</h3><p id="live-chart-subtitle">60 mẫu MQTT gần nhất</p></span></div>
-              <div class="segmented-control" id="live-metric-control"><button class="active" type="button" data-metric="both">Cả hai</button><button type="button" data-metric="temperature">Nhiệt độ</button><button type="button" data-metric="ph">pH</button></div>
-            </div>
-            <div class="chart-wrap large"><canvas id="live-chart" role="img" aria-label="Biểu đồ dữ liệu trực tiếp"></canvas><div class="chart-tooltip" id="live-tooltip"></div></div>
-          </article>
-          <div class="monitor-detail-grid">
-            <article class="panel telemetry-panel">
-              <div class="panel-heading compact"><div><span class="panel-icon"><svg><use href="#i-database"/></svg></span><span><h3>Bản tin mới nhất</h3><p>Payload nhận từ ESP32 qua HiveMQ Public</p></span></div><span class="code-chip">JSON</span></div>
-              <pre id="mqtt-payload">{
-  "deviceId": "aqua-20500de64424",
-  "temperature": 27.4,
-  "ph": 7.2,
-  "timestamp": "2026-07-21T07:00:00+07:00"
-}</pre>
-            </article>
-            <article class="panel connection-panel">
-              <div class="panel-heading compact"><div><span class="panel-icon success"><svg><use href="#i-wifi"/></svg></span><span><h3>Đường truyền dữ liệu</h3><p>Trạng thái cập nhật từ backend</p></span></div></div>
-              <div class="connection-list"><div><span><svg><use href="#i-cpu"/></svg>ESP32 WROOM-32</span><b><i></i>Đang chờ</b></div><div><span><svg><use href="#i-wifi"/></svg>MQTT Broker</span><b><i></i>Đang chờ</b></div><div><span><svg><use href="#i-database"/></svg>Firestore</span><b><i></i>Đang kiểm tra</b></div></div>
-            </article>
-          </div>
-        </section>
+        <section>
+            <h2>Điều khiển relay</h2>
 
-        <section class="page-view" data-view="history">
-          <div class="page-header-row">
-            <div><span class="section-kicker">YC4 + YC5 · CLOUD &amp; BIỂU ĐỒ</span><h2>Lịch sử dữ liệu</h2><p>Tra cứu dữ liệu pH và nhiệt độ đã lưu bằng Chart.js.</p></div>
-            <button class="primary-button" id="export-csv" type="button"><svg><use href="#i-download"/></svg> Xuất CSV</button>
-          </div>
-          <article class="panel history-chart-panel">
-            <div class="history-toolbar">
-              <div class="segmented-control" id="history-range"><button type="button" data-hours="6">6 giờ</button><button class="active" type="button" data-hours="24">24 giờ</button><button type="button" data-hours="168">7 ngày</button><button type="button" data-hours="720">30 ngày</button></div>
-              <div class="toolbar-right"><label>Chỉ số <select id="history-metric"><option value="both">Nhiệt độ &amp; pH</option><option value="temperature">Nhiệt độ</option><option value="ph">Độ pH</option></select></label><span class="cloud-source"><svg><use href="#i-cloud"/></svg> Firestore / kho cục bộ</span></div>
-            </div>
-            <div class="history-summary"><div><span>Trung bình nhiệt độ</span><strong id="avg-temp">27.2°C</strong></div><div><span>Trung bình pH</span><strong id="avg-ph">7.15</strong></div><div><span>Số bản ghi</span><strong id="record-count">24</strong></div><div><span>Khoảng dữ liệu</span><strong id="history-period">24 giờ</strong></div></div>
-            <div class="chart-wrap large"><canvas id="history-chart" role="img" aria-label="Biểu đồ lịch sử dữ liệu"></canvas><div class="chart-tooltip" id="history-tooltip"></div></div>
-          </article>
-          <article class="panel data-table-panel">
-            <div class="panel-heading table-heading"><div><span class="panel-icon"><svg><use href="#i-database"/></svg></span><span><h3>Danh sách bản ghi</h3><p id="table-record-caption">Hiển thị dữ liệu demo gần nhất</p></span></div><div class="table-tools"><label class="search-field"><svg><use href="#i-filter"/></svg><input id="history-search" type="search" placeholder="Lọc theo thời gian..."></label></div></div>
-            <div class="table-scroll"><table><thead><tr><th>Thời gian</th><th>Nhiệt độ</th><th>Độ pH</th><th>Thiết bị</th><th>Đánh giá</th></tr></thead><tbody id="history-table-body"></tbody></table></div>
-            <div class="table-pagination"><span id="pagination-info">1–8 trong 24 bản ghi</span><div><button id="prev-page" type="button" aria-label="Trang trước"><svg class="flip"><use href="#i-chevron"/></svg></button><span id="page-indicator">1 / 3</span><button id="next-page" type="button" aria-label="Trang sau"><svg><use href="#i-chevron"/></svg></button></div></div>
-          </article>
-        </section>
+            <button id="relay-on-button" type="button">
+                Bật relay
+            </button>
 
-        <section class="page-view" data-view="devices">
-          <div class="page-header-row">
-            <div><span class="section-kicker">CB1 + CB2 + YC1 · TRẠNG THÁI PHẦN CỨNG</span><h2>Thiết bị trong hệ thống</h2><p>Theo dõi thiết bị nào đang hoạt động, đang tắt hoặc chưa gửi dữ liệu.</p></div>
-            <span class="all-online"><i></i> Đang chờ trạng thái từ ESP32</span>
-          </div>
-          <div class="device-list-column">
-            <h3 class="subsection-title">Trạng thái hiện tại <span>5 thiết bị chính</span></h3>
-            <div class="device-cards">
-              <article class="device-card"><span class="device-card-icon main"><svg><use href="#i-cpu"/></svg></span><div><span class="device-id">THIẾT BỊ TRUNG TÂM</span><h4>ESP32 WROOM-32</h4><p>38 chân + đế GVS · USB Type-C</p></div><b class="online-badge offline" data-device-status="esp32"><i></i>Đang chờ</b><footer><span>Tín hiệu <strong>RSSI qua MQTT</strong></span><span>Chu kỳ <strong>3 giây/lần</strong></span></footer></article>
-              <article class="device-card"><span class="device-card-icon temp"><svg><use href="#i-thermometer"/></svg></span><div><span class="device-id">CẢM BIẾN · CB1</span><h4>DS18B20 chống nước</h4><p>Đầu dò nhiệt độ · GPIO13</p></div><b class="online-badge offline" data-device-status="temperature"><i></i>Đang chờ</b><footer><span>Giá trị <strong><span data-temperature>--</span>°C</strong></span><span>Kết nối <strong>1-Wire</strong></span></footer></article>
-              <article class="device-card"><span class="device-card-icon ph"><svg><use href="#i-water"/></svg></span><div><span class="device-id">CẢM BIẾN · CB1</span><h4>Module pH 0–14</h4><p>Điện cực BNC · GPIO34</p></div><b class="online-badge offline" data-device-status="ph"><i></i>Đang chờ</b><footer><span>Giá trị <strong><span data-ph>--</span> pH</strong></span><span>Hiệu chuẩn <strong>Chưa thực hiện</strong></span></footer></article>
-              <article class="device-card"><span class="device-card-icon alert"><svg><use href="#i-alert"/></svg></span><div><span class="device-id">CẢM BIẾN · YC1</span><h4>Độ đục TS-300B</h4><p>GPIO35 · cảnh báo bằng LED/OLED</p></div><b class="online-badge offline" data-device-status="turbidity"><i></i>Đang chờ</b><footer><span>RAW <strong data-turbidity-raw>--</strong></span><span>Xử lý <strong>Tại ESP32</strong></span></footer></article>
-              <article class="device-card"><span class="device-card-icon main"><svg><use href="#i-wind"/></svg></span><div><span class="device-id">CHẤP HÀNH · CB2</span><h4>Relay và máy sủi</h4><p>Relay GPIO26 · điều khiển từ trang Tổng quan</p></div><b class="online-badge offline" data-device-status="relay"><i></i>Đang chờ</b><footer><span>Trạng thái <strong data-aerator-state>Đang tắt</strong></span><span>Chế độ <strong data-device-mode>MANUAL</strong></span></footer></article>
-            </div>
-          </div>
-        </section>
+            <button id="relay-off-button" type="button">
+                Tắt relay
+            </button>
 
-        <section class="page-view" data-view="alerts">
-          <div class="page-header-row">
-            <div><span class="section-kicker">YC6 · CẢNH BÁO TELEGRAM</span><h2>Cảnh báo &amp; ngưỡng</h2><p>Cấu hình ngưỡng thật để Node-RED theo dõi pH và nhiệt độ.</p></div>
-            <button class="secondary-button" id="simulate-alert" type="button"><svg><use href="#i-alert"/></svg> Gửi cảnh báo thử</button>
-          </div>
-          <div class="alert-stats-grid"><article><span class="alert-stat-icon success"><svg><use href="#i-check"/></svg></span><div><span>Trạng thái hiện tại</span><strong>Đang theo dõi</strong><small>Theo ngưỡng cấu hình</small></div></article><article><span class="alert-stat-icon warn"><svg><use href="#i-bell"/></svg></span><div><span>Lịch sử</span><strong id="alert-total">0 cảnh báo</strong><small>Firestore / Node-RED</small></div></article><article><span class="alert-stat-icon telegram"><svg><use href="#i-send"/></svg></span><div><span>Telegram Bot</span><strong id="telegram-status-text">Đang kiểm tra</strong><small id="telegram-status-detail">Token chỉ lưu tại backend</small></div><label class="toggle" title="Bật hoặc tắt gửi cảnh báo"><input id="telegram-toggle" type="checkbox"><span></span></label></article></div>
-          <div class="alerts-layout">
-            <article class="panel threshold-panel">
-              <div class="panel-heading compact"><div><span class="panel-icon"><svg><use href="#i-sliders"/></svg></span><span><h3>Cấu hình ngưỡng</h3><p>Backend dùng trực tiếp để phát hiện bất thường.</p></span></div><span class="demo-outline-badge">LIVE</span></div>
-              <form id="threshold-form">
-                <div class="threshold-group"><div class="threshold-title"><span class="threshold-icon temp"><svg><use href="#i-thermometer"/></svg></span><span><strong>Nhiệt độ nước</strong><small>Cảnh báo khi ngoài khoảng</small></span></div><div class="threshold-fields"><label><span>Tối thiểu</span><span class="number-input"><input name="tempMin" type="number" step="0.1" value="24.0" required><b>°C</b></span></label><i>—</i><label><span>Tối đa</span><span class="number-input"><input name="tempMax" type="number" step="0.1" value="30.0" required><b>°C</b></span></label></div></div>
-                <div class="threshold-group"><div class="threshold-title"><span class="threshold-icon ph"><svg><use href="#i-water"/></svg></span><span><strong>Độ pH</strong><small>Cảnh báo khi ngoài khoảng</small></span></div><div class="threshold-fields"><label><span>Tối thiểu</span><span class="number-input"><input name="phMin" type="number" step="0.1" value="6.5" required><b>pH</b></span></label><i>—</i><label><span>Tối đa</span><span class="number-input"><input name="phMax" type="number" step="0.1" value="8.0" required><b>pH</b></span></label></div></div>
-                <div class="threshold-note"><svg><use href="#i-info"/></svg><p><strong>Cần xác nhận trước khi triển khai:</strong> proposal không quy định ngưỡng an toàn. Hãy cấu hình theo loài cá và điều kiện hồ thực tế.</p></div>
-                <button class="primary-button full" type="submit"><svg><use href="#i-check"/></svg> Lưu cấu hình</button>
-              </form>
-            </article>
-            <article class="panel alert-history-panel">
-              <div class="panel-heading compact"><div><span class="panel-icon alert"><svg><use href="#i-history"/></svg></span><span><h3>Lịch sử cảnh báo</h3><p>Thông báo do Node-RED kiểm tra và lưu</p></span></div><button class="text-button" id="clear-demo-alerts" type="button">Ẩn danh sách</button></div>
-              <div class="alert-history-list" id="alert-history-list"></div>
-            </article>
-          </div>
-          <article class="panel telegram-connect-card">
-            <div class="telegram-connect-main">
-              <span class="telegram-connect-icon"><svg><use href="#i-send"/></svg></span>
-              <span><strong>Nhận cảnh báo qua Telegram</strong><small id="telegram-link-description">Liên kết tài khoản Telegram để nhận cảnh báo của hồ cá này.</small></span>
-            </div>
-            <div class="telegram-account" id="telegram-account" aria-live="polite"><i></i><span>Chưa liên kết tài khoản</span></div>
-            <div class="telegram-connect-actions">
-              <button class="telegram-button" id="telegram-connect" type="button"><svg><use href="#i-send"/></svg> Nhận thông báo từ Telegram</button>
-              <button class="secondary-button danger-button hidden" id="telegram-disconnect" type="button">Hủy liên kết</button>
-            </div>
-          </article>
-          <article class="panel telegram-flow-card"><div class="telegram-brand"><svg><use href="#i-send"/></svg><span><strong>Luồng xác nhận an toàn</strong><small>Website tạo liên kết một lần; Telegram ID chỉ lưu tại backend</small></span></div><div class="telegram-flow"><span>Nhấn nút trên web</span><svg><use href="#i-chevron"/></svg><span>Mở đúng bot</span><svg><use href="#i-chevron"/></svg><span>Người dùng bấm Start</span><svg><use href="#i-chevron"/></svg><span>Nhận cảnh báo riêng</span></div><span class="integration-label">OPT-IN</span></article>
+            <p id="relay-message"></p>
         </section>
+        <section>
+            <h2>Lịch sử dữ liệu</h2>
 
-        <section class="page-view assistant-view" data-view="assistant">
-          <div class="assistant-header"><div><span class="section-kicker">YC8 · RESPONSES API</span><h2>Trợ lý dữ liệu Aqua</h2><p>Hỏi nhiều lượt về trạng thái, pH, nhiệt độ, lịch sử, cảnh báo và máy sủi.</p></div><span class="assistant-mode" id="assistant-mode" data-state="checking"><i></i><span id="assistant-mode-label">Đang kiểm tra AI</span></span></div>
-          <div class="assistant-layout">
-            <article class="chat-panel">
-              <div class="chat-head"><div><span class="bot-avatar"><svg><use href="#i-chat"/></svg></span><span><strong>Trợ lý Aqua</strong><small id="assistant-status"><i></i><span>Sẵn sàng trả lời</span></small></span></div><button id="clear-chat" type="button"><svg><use href="#i-refresh"/></svg> Cuộc trò chuyện mới</button></div>
-              <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
-              <div class="typing-indicator hidden" id="typing-indicator"><span></span><span></span><span></span><small>Trợ lý đang phân tích dữ liệu hệ thống…</small></div>
-              <form class="chat-composer" id="chat-form"><label for="chat-input" class="sr-only">Nhập câu hỏi</label><textarea id="chat-input" rows="1" placeholder="Ví dụ: pH hiện tại là bao nhiêu?" maxlength="500"></textarea><button id="chat-send" type="submit" aria-label="Gửi câu hỏi"><svg><use href="#i-send"/></svg></button></form>
-              <p class="chat-disclaimer"><svg><use href="#i-info"/></svg> Chatbot chỉ đọc dữ liệu. Khóa API chỉ nằm tại backend; câu hỏi và ngữ cảnh cảm biến được gửi tới nhà cung cấp AI đang cấu hình.</p>
-            </article>
-            <aside class="assistant-sidebar">
-              <article class="panel suggested-card"><h3>Câu hỏi gợi ý</h3><p>Chọn một câu để thử luồng chatbot.</p><div class="suggestion-list"><button type="button" data-question="pH hiện tại của hồ là bao nhiêu?"><span><svg><use href="#i-water"/></svg></span>pH hiện tại của hồ là bao nhiêu?<svg><use href="#i-chevron"/></svg></button><button type="button" data-question="Nhiệt độ nước có ổn định không?"><span><svg><use href="#i-thermometer"/></svg></span>Nhiệt độ nước có ổn định không?<svg><use href="#i-chevron"/></svg></button><button type="button" data-question="Máy sủi đang bật hay tắt?"><span><svg><use href="#i-wind"/></svg></span>Máy sủi đang bật hay tắt?<svg><use href="#i-chevron"/></svg></button><button type="button" data-question="Tóm tắt tình trạng hồ cá hôm nay"><span><svg><use href="#i-activity"/></svg></span>Tóm tắt tình trạng hồ cá hôm nay<svg><use href="#i-chevron"/></svg></button></div></article>
-              <article class="panel ai-data-card"><span class="panel-icon ai"><svg><use href="#i-database"/></svg></span><div><h3>Nguồn dữ liệu đang dùng</h3><p>Trợ lý chỉ nhận dữ liệu của hồ thuộc phiên đăng nhập hiện tại.</p></div><ul><li><svg><use href="#i-check"/></svg> Giá trị cảm biến hiện tại</li><li><svg><use href="#i-check"/></svg> Tối đa 120 bản ghi trong 24 giờ</li><li><svg><use href="#i-check"/></svg> Trạng thái relay và kết nối</li><li><svg><use href="#i-check"/></svg> 10 cảnh báo gần nhất</li></ul></article>
-            </aside>
-          </div>
-        </section>
+            <label for="history-hours">
+                Khoảng thời gian:
+            </label>
 
-        <section class="page-view" data-view="settings">
-          <div class="page-header-row">
-            <div><span class="section-kicker">YC9 · XÁC THỰC &amp; HỒ SƠ</span><h2>Cài đặt &amp; thông tin dự án</h2><p>Quản lý hồ sơ người dùng và trạng thái các dịch vụ.</p></div>
-            <button class="secondary-button danger-button" id="logout-button" type="button"><svg><use href="#i-log-out"/></svg> Đăng xuất</button>
-          </div>
-          <div class="settings-layout">
-            <div class="settings-main">
-              <article class="panel profile-card">
-                <div class="profile-cover"></div><div class="profile-main"><span class="profile-avatar" data-user-initial>ND</span><div><h3 data-user-name>Người dùng</h3><p id="profile-email"></p><span><span data-account-mode>Đang xác thực</span> · Hồ cá chính</span></div></div>
-                <form id="profile-form"><div class="form-grid"><label class="field"><span>Họ và tên</span><span class="input-wrap plain"><input id="profile-name" name="name" type="text" value="Người dùng" required></span></label><label class="field"><span>Email</span><span class="input-wrap plain disabled"><input id="profile-email-input" type="email" value="" disabled></span></label></div><label class="field"><span>Tên hồ cá</span><span class="input-wrap plain"><input id="pond-name" name="pondName" type="text" value="Hồ cá chính" required></span></label><button class="primary-button" type="submit"><svg><use href="#i-check"/></svg> Lưu hồ sơ</button></form>
-              </article>
-              <article class="panel">
-                <div class="panel-heading compact"><div><span class="panel-icon"><svg><use href="#i-cpu"/></svg></span><span><h3>Liên kết bộ thiết bị</h3><p>Dùng khi đã có tài khoản hoặc muốn thêm một bộ ESP32 khác.</p></span></div><span class="code-chip" id="current-device-id">Chưa liên kết</span></div>
-                <form id="device-claim-form"><label class="field"><span>Mã định danh thiết bị</span><span class="input-wrap plain"><input id="claim-device-id" name="deviceId" type="text" autocomplete="off" spellcheck="false" placeholder="aqua-20500de64424" minlength="6" maxlength="64" required></span><small>Mã xuất hiện trên OLED, Serial Monitor và trang cài đặt Wi‑Fi của ESP32.</small></label><button class="primary-button" type="submit"><svg><use href="#i-check"/></svg> Liên kết thiết bị</button></form>
-              </article>
-              <article class="panel feature-map-card">
-                <div class="panel-heading compact"><div><span class="panel-icon"><svg><use href="#i-grid"/></svg></span><span><h3>Đối chiếu chức năng đề xuất</h3><p>Mỗi khu vực giao diện được truy vết về đúng ID chức năng.</p></span></div><span class="complete-badge"><svg><use href="#i-check"/></svg> 8/8</span></div>
-                <div class="feature-map" id="feature-map">
-                  <div><b>CB1</b><span><strong>Giám sát pH &amp; nhiệt độ</strong><small>Tổng quan · Giám sát trực tiếp</small></span><i><svg><use href="#i-check"/></svg></i></div>
-                  <div><b>CB2</b><span><strong>Điều khiển máy sủi</strong><small>Tổng quan · Thiết bị</small></span><i><svg><use href="#i-check"/></svg></i></div>
-                  <div><b>YC1</b><span><strong>Cảnh báo độ đục tại thiết bị</strong><small>Thiết bị · ghi rõ LED/OLED cục bộ</small></span><i><svg><use href="#i-check"/></svg></i></div>
-                  <div><b>YC4</b><span><strong>Lưu lịch sử trên Cloud</strong><small>Lịch sử dữ liệu · Firestore dự kiến</small></span><i><svg><use href="#i-check"/></svg></i></div>
-                  <div><b>YC5</b><span><strong>Hiển thị biểu đồ Cloud</strong><small>Tổng quan · Lịch sử dữ liệu</small></span><i><svg><use href="#i-check"/></svg></i></div>
-                  <div><b>YC6</b><span><strong>Cảnh báo Telegram</strong><small>Cảnh báo &amp; ngưỡng</small></span><i><svg><use href="#i-check"/></svg></i></div>
-                  <div><b>YC8</b><span><strong>Chatbot truy vấn hệ thống</strong><small>Trợ lý AI</small></span><i><svg><use href="#i-check"/></svg></i></div>
-                  <div><b>YC9</b><span><strong>Đăng ký, đăng nhập, bảo mật</strong><small>Màn hình xác thực · Hồ sơ</small></span><i><svg><use href="#i-check"/></svg></i></div>
+            <select id="history-hours">
+                <option value="6">6 giờ</option>
+                <option value="24" selected>24 giờ</option>
+                <option value="168">7 ngày</option>
+                <option value="720">30 ngày</option>
+            </select>
+
+            <button id="load-history-button" type="button">
+                Xem lịch sử
+            </button>
+
+            <p>
+                Số bản ghi:
+                <strong id="history-count">0</strong>
+            </p>
+
+            <p id="history-error"></p>
+
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <h3>Lịch sử nhiệt độ</h3>
+                    <canvas id="temperature-chart"></canvas>
                 </div>
-              </article>
+
+                <div class="chart-container">
+                    <h3>Lịch sử pH</h3>
+                    <canvas id="ph-chart"></canvas>
+                </div>
             </div>
-            <aside class="settings-side">
-              <article class="panel project-card"><div class="project-logo"><img src="assets/logo-hcmus.png" alt="Logo HCMUS"></div><span class="feature-code">ĐỒ ÁN NHÓM 18</span><h3>Hệ thống IoT giám sát và cảnh báo chất lượng nước hồ cá</h3><p>Học phần Vật lý cho Công nghệ Thông tin · HK3/2025–2026.</p><div class="team-list"><div><span>HN</span><p><strong>Lê Đoàn Nhật Huy</strong><small>24127175</small></p></div><div><span>TT</span><p><strong>Nguyễn Thành Trung</strong><small>24127257</small></p></div></div><div class="project-cost"><span>Chi phí phần cứng dự kiến</span><strong>1.149.000 VNĐ</strong></div></article>
-              <article class="panel environment-card"><div><span class="panel-icon success"><svg><use href="#i-lock"/></svg></span><span><h3>Trạng thái bản demo</h3><p>Frontend tĩnh · localStorage</p></span></div><ul><li><span>Firebase Auth</span><b>Mô phỏng</b></li><li><span>MQTT / ESP32</span><b>Mô phỏng</b></li><li><span>Firestore</span><b>Mô phỏng</b></li><li><span>AI / Telegram</span><b>Mô phỏng</b></li></ul></article>
-            </aside>
-          </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Nhiệt độ</th>
+                        <th>pH</th>
+                        <th>Relay</th>
+                    </tr>
+                </thead>
+
+                <tbody id="history-body"></tbody>
+            </table>
         </section>
-      </div>
+    <section>
+    <h2>Trợ lý Aqua IoT</h2>
+
+    <div
+        id="chat-messages"
+        class="chat-messages"
+        aria-live="polite"
+    ></div>
+
+    <form id="chat-form">
+        <label for="chat-question">
+            Câu hỏi
+        </label>
+
+        <textarea
+            id="chat-question"
+            maxlength="500"
+            rows="3"
+            required
+            placeholder="Ví dụ: Nhiệt độ hiện tại có bình thường không?"
+        ></textarea>
+
+        <button id="chat-send-button" type="submit">
+            Gửi
+        </button>
+    </form>
+
+    <p id="chat-error"></p>
+        </section>
     </main>
-  </div>
-
-  <div class="toast-region" id="toast-region" aria-live="polite"></div>
-
-  <div class="modal-backdrop hidden" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-card"><span class="modal-icon"><svg><use href="#i-wind"/></svg></span><h3 id="modal-title">Xác nhận lệnh máy sủi</h3><p id="modal-message">Bạn muốn thay đổi trạng thái máy sủi?</p><div><button class="secondary-button" type="button" data-modal-cancel>Hủy</button><button class="primary-button" type="button" data-modal-confirm>Xác nhận</button></div></div>
-  </div>
-
-  <script src="/vendor/chartjs/chart.umd.js"></script>
-  <script src="backend-client.js"></script>
-  <script src="app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>
