@@ -47,7 +47,7 @@ registerForm.addEventListener("submit", async (event) => {
 });
 
 logoutButton.addEventListener("click", async () => {
-    logoutButton.disabled = true; // Disable để user không click nhiều lần 
+    logoutButton.disabled = true; // Díable để user không click nhiều lần 
     try {
         await logout();
     } finally { // Dù logout có lỗi hay không thì vẫn chạy 
