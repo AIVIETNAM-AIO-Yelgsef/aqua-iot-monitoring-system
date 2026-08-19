@@ -96,12 +96,6 @@ function renderHistoryCharts(items) {
                 interaction: {
                     mode: "index",
                     intersect: false
-                },
-                scales: {
-                    y: {
-                        min: 0,
-                        max: 14
-                    }
                 }
             }
         }

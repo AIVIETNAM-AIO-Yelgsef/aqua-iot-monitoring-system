@@ -119,12 +119,11 @@ bool connectMQTT()
   Serial.print("Đang kết nối MQTT...");
 
   bool connected = mqttClient.connect(
-    deviceId.c_str(),
-    statusTopic.c_str(),
-    1,
-    true,
-    "offline"
-  );
+      deviceId.c_str(),
+      statusTopic.c_str(),
+      1,
+      true,
+      "offline");
 
   if (!connected)
   {
@@ -167,7 +166,8 @@ void publishTelemetry()
   }
 
   // pH chỉ được gửi sau khi cảm biến đã hiệu chuẩn.
-  payload += ",\"ph\": 7.00";
+  payload += ",\"ph\":";
+  payload += String(phRaw);
   payload += ",\"relayOn\":";
   payload += relayOn ? "true" : "false";
   payload += "}";
